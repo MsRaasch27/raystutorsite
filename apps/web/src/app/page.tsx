@@ -1,8 +1,8 @@
 import { headers } from "next/headers";
 
-function getBaseUrl() {
+async function getBaseUrl() {
   // Prefer host header at runtime (works on dev server and Firebase Hosting SSR)
-  const h = headers();
+  const h = await headers();
   const host = h.get("x-forwarded-host") || h.get("host");
 
   // If we don't have a host (edge cases), fall back:
@@ -14,7 +14,7 @@ function getBaseUrl() {
 }
 
 export default async function HomePage() {
-  const base = getBaseUrl();
+  const base = await getBaseUrl();
   const res = await fetch(`${base}/api/health`, { cache: "no-store" });
   const data = await res.json();
 
