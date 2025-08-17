@@ -31,7 +31,24 @@
     ],
     "frameworksBackend": {
       "region": "us-central1"
-    }
+    },
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": {
+          "functionId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/**",
+        "function": {
+          "functionId": "ssrraystutorsite",
+          "region": "us-central1",
+          "pinTag": true
+        }
+      }
+    ]
   },
   "emulators": {
     "singleProjectMode": true,
