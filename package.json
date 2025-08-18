@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev:functions": "cd functions && npm run build:watch",
-    "dev:emulators": "firebase emulators:start --only functions,firestore,hosting",
+    "dev:emulators": "firebase emulators:start --only functions,firestore,hosting --import .firebase/emulator-data --export-on-exit",
     "dev:frontend": "cd apps/web && npm run dev",
     "dev": "concurrently \"npm run dev:functions\" \"npm run dev:emulators\" \"npm run dev:frontend\"",
     "stop": "kill-port 5000 5001 8080 8081 4000 4400 4500 9150 || true",

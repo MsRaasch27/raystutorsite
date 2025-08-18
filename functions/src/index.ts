@@ -1,12 +1,15 @@
-import { setGlobalOptions } from "firebase-functions";
+import {setGlobalOptions} from "firebase-functions";
 import * as functions from "firebase-functions";
-import { onRequest } from "firebase-functions/v2/https";
+import {onRequest} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
-import express, { Request, Response } from "express";
+import express, {Request, Response} from "express";
 import cors from "cors";
 
-setGlobalOptions({ maxInstances: 10 });
-admin.initializeApp();
+setGlobalOptions({maxInstances: 10});
+
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 const db = admin.firestore();
 
 const app = express();
@@ -24,99 +27,132 @@ app.use(
 );
 app.use(express.json());
 
+// ----- shared router -----
+// eslint-disable-next-line new-cap
+const apiRouter = express.Router();
+
 // Health
-app.get("/health", (_req: Request, res: Response) => {
-  res.json({ status: "ok", env: process.env.NODE_ENV });
+apiRouter.get("/health", (_req: Request, res: Response) => {
+  res.json({
+    status: "ok",
+    env: process.env.NODE_ENV || "production",
+  });
 });
 
-// Helpers
-const normalizeEmail = (e: string) => e.trim().toLowerCase();
-const tsNow = () => admin.firestore.Timestamp.now();
+// Persist form submission
+apiRouter.post(
+  "/hooks/form-submission",
+  async (req: Request, res: Response) => {
+    try {
+      const {name, email, sheetName, answers} = req.body || {};
+      if (!email) {
+        return res.status(400).json({error: "Missing email in payload"});
+      }
+      const userId = String(email).trim().toLowerCase();
 
-// POST /api/hooks/form-submission
-app.post("/hooks/form-submission", async (req: Request, res: Response) => {
-  try {
-    const body = (req.body ?? {}) as {
-      submittedAt?: string;
-      sheetName?: string;
-      answers?: Record<string, unknown>;
-      name?: string;
-      email?: string;
-    };
+      // Extract goals from answers if available
+      const goals = answers && answers["Your Language Goals"] ?
+        answers["Your Language Goals"] :
+        null;
 
-    // Prefer explicit top-level fields; fall back to answers + optional env titles
-    let { name, email } = body;
-    const answers = body.answers || {};
+      const now = new Date();
+      await db.collection("users").doc(userId).set(
+        {
+          name: name || null,
+          email: userId,
+          sheetName: sheetName || null,
+          goals: goals,
+          updatedAt: now,
+          createdAt: now,
+        },
+        {merge: true}
+      );
 
-    if (!name || !email) {
-      const NAME_Q = process.env.NAME_QUESTION_TITLE;
-      const EMAIL_Q = process.env.EMAIL_QUESTION_TITLE;
-      if (!name && NAME_Q && answers && NAME_Q in answers)
-        name = String(answers[NAME_Q as keyof typeof answers]);
-      if (!email && EMAIL_Q && answers && EMAIL_Q in answers)
-        email = String(answers[EMAIL_Q as keyof typeof answers]);
+      return res.status(200).json({ok: true, userId});
+    } catch (err: unknown) {
+      console.error("form-submission error", err);
+      return res.status(500).json({error: "internal"});
     }
+  });
 
-    const receivedAt = tsNow();
-    const submittedAt = body.submittedAt
-      ? admin.firestore.Timestamp.fromDate(new Date(body.submittedAt))
-      : receivedAt;
+// Store assessment responses
+apiRouter.post(
+  "/hooks/assessment-submission",
+  async (req: Request, res: Response) => {
+    try {
+      const {email, submittedAt, answers} = req.body || {};
+      if (!email) {
+        return res.status(400).json({error: "Missing email in payload"});
+      }
+      const userId = String(email).trim().toLowerCase();
 
-    // Write submission
-    const submission = {
-      name: name ?? null,
-      email: email ?? null,
-      sheetName: body.sheetName ?? null,
-      answers,
-      submittedAt,
-      receivedAt,
-      source: "google-form",
-    };
+      const now = new Date();
+      const assessmentId = `${userId}_${now.getTime()}`;
 
-    const subRef = await db.collection("formSubmissions").add(submission);
-
-    // Upsert user (if we have an email)
-    if (email) {
-      const userId = normalizeEmail(email);
-      const userRef = db.collection("users").doc(userId);
-      await db.runTransaction(async (tx) => {
-        const snap = await tx.get(userRef);
-        if (snap.exists) {
-          tx.update(userRef, {
-            name: name ?? admin.firestore.FieldValue.delete(),
-            email: userId,
-            lastSubmissionAt: receivedAt,
-            submissionCount: admin.firestore.FieldValue.increment(1),
-            lastSubmissionRef: subRef,
-          });
-        } else {
-          tx.set(userRef, {
-            name: name ?? null,
-            email: userId,
-            createdAt: receivedAt,
-            lastSubmissionAt: receivedAt,
-            submissionCount: 1,
-            lastSubmissionRef: subRef,
-          });
-        }
+      await db.collection("assessments").doc(assessmentId).set({
+        userId: userId,
+        email: userId,
+        submittedAt: submittedAt || now.toISOString(),
+        answers: answers || {},
+        createdAt: now,
       });
+
+      return res.status(200).json({ok: true, assessmentId, userId});
+    } catch (err: unknown) {
+      console.error("assessment-submission error", err);
+      return res.status(500).json({error: "internal"});
     }
+  });
 
-    return res.status(200).json({ ok: true, submissionId: subRef.id });
-  } catch (err) {
-    console.error("form-submission error", err);
-    return res.status(500).json({ error: "internal_error" });
-  }
-});
+// Read user (for Student page)
+apiRouter.get(
+  "/users/:id",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const snap = await db.collection("users").doc(id).get();
+      if (!snap.exists) return res.status(404).json({error: "not found"});
+      return res.json({id, ...snap.data()});
+    } catch (err: unknown) {
+      console.error("get user error", err);
+      return res.status(500).json({error: "internal"});
+    }
+  });
 
-// 404 for unknown API paths
-app.use((_req: Request, res: Response) => res.status(404).json({ error: "Not found" }));
+// Get user's assessments
+apiRouter.get(
+  "/users/:id/assessments",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const assessmentsSnap = await db.collection("assessments")
+        .where("userId", "==", id)
+        .orderBy("createdAt", "desc")
+        .get();
 
-// Export the single HTTPS function (Express)
-export const api = onRequest({ region: "us-central1" }, app);
+      const assessments = assessmentsSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-// (unchanged) Stripe stub — optional
+      return res.json({assessments});
+    } catch (err: unknown) {
+      console.error("get assessments error", err);
+      return res.status(500).json({error: "internal"});
+    }
+  });
+
+// Mount only at '/api'
+app.use("/api", apiRouter);
+
+// 404
+app.use((_req: Request, res: Response) =>
+  res.status(404).json({error: "Not found"}));
+
+// Export function
+export const api = onRequest({region: "us-central1"}, app);
+
+// (optional) legacy stub you had:
 export const stripeWebhook = functions.https.onRequest((_req, res) => {
-  console.log("Stripe webhook hit");
   res.status(200).send("ok");
 });

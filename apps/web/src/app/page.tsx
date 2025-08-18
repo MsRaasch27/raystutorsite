@@ -25,7 +25,7 @@ export default async function HomePage() {
               Level Up Your Language Skills
             </h1>
             <p className="text-xl md:text-2xl mb-6 max-w-2xl">
-              Personalized gamified learning experiences designed to unlock your potential and achieve academic excellence
+              Personalized gamified English language learning designed to help you crush your language goals fast
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
               <a 
@@ -82,16 +82,34 @@ export default async function HomePage() {
           </h2>
   
           
-          {/* Google Calendar Embed */}
-          <div className="bg-gray-100 rounded-lg p-4">
-            <iframe 
-              src="https://calendar.google.com/calendar/appointments/schedules/AcZssZ1YL7elo0lkIxv6Su3_AInKisXz3XdiRbJ_iEc6bxs2UCBGV9TZy8Z61AxhTj3cN8idri6VX8LA?gv=true" 
-              style={{ border: 0 }} 
-              width="100%" 
-              height="600" 
-              frameBorder="0"
-              title="Schedule Appointment"
-            />
+          {/* Google Calendar Embed with Read-only Overlay */}
+          <div className="bg-gray-100 rounded-lg p-4 relative">
+            <div className="relative overflow-hidden rounded-lg" style={{ height: '750px' }}>
+              <iframe 
+                src="https://calendar.google.com/calendar/appointments/schedules/AcZssZ1YL7elo0lkIxv6Su3_AInKisXz3XdiRbJ_iEc6bxs2UCBGV9TZy8Z61AxhTj3cN8idri6VX8LA?gv=true" 
+                style={{ 
+                  border: 0,
+                  width: '100%',
+                  height: '800px',
+                  transform: 'scale(1.2)',
+                  transformOrigin: 'center bottom',
+                  pointerEvents: 'none'
+                }} 
+                frameBorder="0"
+                title="Schedule Appointment"
+              />
+              {/* Transparent overlay to prevent clicks */}
+              <div 
+                className="absolute inset-0 bg-transparent cursor-not-allowed"
+                style={{ zIndex: 10 }}
+                title="Contact to book appointments"
+              ></div>
+            </div>
+            <div className="text-center mt-4">
+              <p className="text-gray-600 text-sm">
+                <strong>Note:</strong> This is a preview of available times. Please contact me to book an appointment.
+              </p>
+            </div>
           </div>
         </div>
 

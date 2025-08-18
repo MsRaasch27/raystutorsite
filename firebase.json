@@ -24,19 +24,19 @@
   ],
   "hosting": {
     "source": "apps/web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "frameworksBackend": {
       "region": "us-central1"
     },
     "rewrites": [
       {
         "source": "/api/**",
+        "function": { "functionId": "api", "region": "us-central1" }
+      },
+      {
+        "source": "/**",
         "function": {
-          "functionId": "api",
+          "functionId": "ssrraystutorsite",
           "region": "us-central1"
         }
       }
