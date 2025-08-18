@@ -11,28 +11,39 @@ export default async function HomePage() {
         {/* Hero Content */}
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-center text-white px-6 gap-8">
           {/* Profile Image */}
-          <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-white bg-opacity-20 flex items-center justify-center border-4 border-white border-opacity-30">
-            <div className="text-center text-white">
-              <div className="text-4xl md:text-5xl mb-2">📚</div>
-              <p className="text-xs md:text-sm font-semibold">Add Photo</p>
-            </div>
+          <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30">
+            <img 
+              src="/TEFLclass.jpg" 
+              alt="TEFL Class Teaching" 
+              className="w-full h-full object-cover"
+            />
           </div>
           
           {/* Text Content */}
           <div className="text-center md:text-left">
             <h1 className="text-5xl md:text-6xl font-bold mb-4">
-              Ray&apos;s Tutoring
+              Level Up Your Language Skills
             </h1>
             <p className="text-xl md:text-2xl mb-6 max-w-2xl">
-              Personalized learning experiences designed to unlock your potential and achieve academic excellence
+              Personalized gamified learning experiences designed to unlock your potential and achieve academic excellence
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-              <button className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
+              <a 
+                href="https://forms.gle/kMfysT3gYQ1PsqLQ8" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-block text-center"
+              >
                 Book a Free Trial Session
-              </button>
-              <button className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors">
+              </a>
+              <a 
+                href="https://forms.gle/kMfysT3gYQ1PsqLQ8" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors inline-block text-center"
+              >
                 Learn More
-              </button>
+              </a>
             </div>
           </div>
         </div>
@@ -46,9 +57,7 @@ export default async function HomePage() {
             Transform Your Learning Journey
           </h2>
           <p className="text-lg text-gray-600 mb-8 text-center max-w-3xl mx-auto">
-            With extensive teaching experience, I specialize in making complex subjects accessible and engaging. 
-            Whether you&apos;re struggling with math, science, or need help with test preparation, I&apos;m here to guide you 
-            every step of the way.
+            With over a decade of experience in the education industry as well as several years in the gaming industry, I specialize in making complex subjects fun and interesting to learn. With me as your TEFL-certified language tutor, you can be confident in achieving your language goals.
           </p>
           <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
             <div className="flex items-center justify-center">
@@ -96,7 +105,12 @@ export default async function HomePage() {
             <a href="mailto:msraasch27@gmail.com" className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
               Email Me
             </a>
-            <a href="tel:+1234567890" className="border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+            <a 
+              href="https://forms.gle/kMfysT3gYQ1PsqLQ8" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+            >
               Claim Free Trial
             </a>
           </div>
@@ -106,7 +120,7 @@ export default async function HomePage() {
       {/* Footer */}
       <footer className="bg-gray-800 text-white py-8 mt-16">
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <p>&copy; 2024 Ray&apos;s Tutoring. All rights reserved.</p>
+          <p>&copy; 2025 Ray Raasch. All rights reserved.</p>
         </div>
       </footer>
     </main>
