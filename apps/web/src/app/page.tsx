@@ -2,7 +2,7 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Hero Section */}
-      <section className="relative h-96 flex items-center justify-center overflow-hidden">
+      <section className="relative min-h-[500px] md:h-96 flex items-center justify-center overflow-hidden py-8">
         {/* Background Image */}
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-700">
           <div className="absolute inset-0 bg-black bg-opacity-40"></div>
@@ -11,7 +11,7 @@ export default async function HomePage() {
         {/* Hero Content */}
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-center text-white px-6 gap-8">
           {/* Profile Image */}
-          <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30">
+          <div className="w-28 h-28 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30">
             <img 
               src="/TEFLclass.jpg" 
               alt="TEFL Class Teaching" 
@@ -21,10 +21,10 @@ export default async function HomePage() {
           
           {/* Text Content */}
           <div className="text-center md:text-left">
-            <h1 className="text-5xl md:text-6xl font-bold mb-4">
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4">
               Level Up Your Language Skills
             </h1>
-            <p className="text-xl md:text-2xl mb-6 max-w-2xl">
+            <p className="text-lg md:text-xl lg:text-2xl mb-6 max-w-2xl">
               Personalized gamified English language learning designed to help you crush your language goals fast
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
@@ -82,21 +82,19 @@ export default async function HomePage() {
           </h2>
   
           
-          {/* Google Calendar Embed with Read-only Overlay */}
-          <div className="bg-gray-100 rounded-lg p-4 relative">
-            <div className="relative overflow-hidden rounded-lg" style={{ height: '750px' }}>
+                    {/* Google Calendar Embed with Read-only Overlay */}
+          <div className="bg-gray-100 rounded-lg p-2 md:p-4 relative">
+            <div className="relative overflow-hidden rounded-lg" style={{ height: '400px', minHeight: '400px' }}>
               <iframe 
-                src="https://calendar.google.com/calendar/appointments/schedules/AcZssZ1YL7elo0lkIxv6Su3_AInKisXz3XdiRbJ_iEc6bxs2UCBGV9TZy8Z61AxhTj3cN8idri6VX8LA?gv=true" 
+                src="https://calendar.google.com/calendar/embed?src=851d007aa799df38b9c1c26d7a66fbdd6401620026e6b7429e535849df9447dd%40group.calendar.google.com&ctz=Asia%2FBangkok" 
                 style={{ 
                   border: 0,
                   width: '100%',
-                  height: '800px',
-                  transform: 'scale(1.2)',
-                  transformOrigin: 'center bottom',
-                  pointerEvents: 'none'
+                  height: '100%',
+                  minHeight: '400px'
                 }} 
-                frameBorder="0"
-                title="Schedule Appointment"
+                frameBorder="0" 
+                scrolling="no"
               />
               {/* Transparent overlay to prevent clicks */}
               <div 
@@ -105,8 +103,8 @@ export default async function HomePage() {
                 title="Contact to book appointments"
               ></div>
             </div>
-            <div className="text-center mt-4">
-              <p className="text-gray-600 text-sm">
+            <div className="text-center mt-2 md:mt-4">
+              <p className="text-gray-600 text-xs md:text-sm px-2">
                 <strong>Note:</strong> This is a preview of available times. Please contact me to book an appointment.
               </p>
             </div>
