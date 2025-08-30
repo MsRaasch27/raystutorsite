@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { FlashcardDeck } from "../../../components/FlashcardDeck";
+import { VocabularySettings } from "../../../components/VocabularySettings";
 
 type User = {
   id: string;
   name?: string | null;
   email: string;
   goals?: string | null;
-  billing?: { active?: boolean } | null; 
+  billing?: { active?: boolean } | null;
+  vocabularySheetId?: string | null;
 };
 
 type Assessment = {
@@ -73,6 +76,7 @@ export function StudentPageClient({
 }) {
   const [activeTab, setActiveTab] = useState<TabType>('practice');
   const [checkingOut, setCheckingOut] = useState(false);
+  const [currentVocabularySheetId, setCurrentVocabularySheetId] = useState(user.vocabularySheetId);
 
   const isPaid = !!user.billing?.active;
   const hasCompletedFirstLesson = past.items.length > 0;
@@ -228,42 +232,21 @@ export function StudentPageClient({
               </div>
             </div>
 
+            {/* Vocabulary Settings */}
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-gray-800 mb-4">⚙️ Vocabulary Settings</h3>
+              <VocabularySettings 
+                userId={user.id}
+                currentSheetId={currentVocabularySheetId}
+                onSheetIdUpdate={setCurrentVocabularySheetId}
+              />
+            </div>
+
             {/* Interactive Flashcard Deck */}
             <div>
               <h3 className="text-xl font-bold text-gray-800 mb-4">🃏 My Flashcard Deck</h3>
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-6 border-2 border-purple-200">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">📚</div>
-                  <h4 className="text-xl font-semibold text-gray-800 mb-2">Vocabulary Builder</h4>
-                  <p className="text-gray-600 mb-6">Practice essential words and phrases for daily conversation</p>
-                  
-                  {/* Flashcard Placeholder */}
-                  <div className="bg-white rounded-lg shadow-lg p-8 mb-6 max-w-md mx-auto">
-                    <div className="text-center">
-                      <div className="text-4xl mb-4">💬</div>
-                      <p className="text-lg font-semibold text-gray-800 mb-2">&quot;How are you feeling today?&quot;</p>
-                      <p className="text-gray-600 text-sm">Tap to reveal answer</p>
-                    </div>
-                  </div>
-                  
-                  {/* Flashcard Controls */}
-                  <div className="flex justify-center gap-4">
-                    <button className="bg-red-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors">
-                      ❌ Hard
-                    </button>
-                    <button className="bg-yellow-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors">
-                      ⚡ Again
-                    </button>
-                    <button className="bg-green-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-600 transition-colors">
-                      ✅ Easy
-                    </button>
-                  </div>
-                  
-                  <div className="mt-4 text-sm text-gray-500">
-                    <p>Progress: 15/50 cards reviewed</p>
-                    <p>Next review: 2 hours</p>
-                  </div>
-                </div>
+                <FlashcardDeck userId={user.id} />
               </div>
             </div>
           </div>
@@ -272,7 +255,7 @@ export function StudentPageClient({
       default:
         return null;
     }
-  }, [activeTab, past.items, upcoming.items, renderAppointment]);
+  }, [activeTab, past.items, upcoming.items, renderAppointment, user.id, currentVocabularySheetId]);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">

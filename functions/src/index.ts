@@ -2,7 +2,8 @@
   @typescript-eslint/no-misused-promises,
   object-curly-spacing,
   indent,
-  operator-linebreak
+  operator-linebreak,
+  max-len
 */
 import {setGlobalOptions} from "firebase-functions";
 import {onRequest} from "firebase-functions/v2/https";
@@ -13,9 +14,11 @@ import Stripe from "stripe";
 import * as admin from "firebase-admin";
 import express, {Request, Response} from "express";
 import cors from "cors";
+import {TextToSpeechClient} from "@google-cloud/text-to-speech";
 
 setGlobalOptions({maxInstances: 10});
 const S_CALENDAR_ID = defineSecret("GOOGLE_CALENDAR_ID");
+const S_VOCAB_SHEET_ID = defineSecret("GOOGLE_VOCAB_SHEET_ID");
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -152,6 +155,226 @@ apiRouter.get(
     }
   });
 
+// Get vocabulary words from Google Sheets
+apiRouter.get(
+  "/vocabulary",
+  async (req: Request, res: Response) => {
+    try {
+      // Check if a specific user ID is provided
+      const userId = req.query.userId as string;
+      let sheetId: string | undefined;
+
+      try {
+        sheetId = process.env.GOOGLE_VOCAB_SHEET_ID || S_VOCAB_SHEET_ID.value();
+      } catch (err) {
+        console.warn("Default vocabulary sheet not configured:", err);
+      }
+
+      // If a user ID is provided, check if they have a custom vocabulary sheet
+      if (userId) {
+        try {
+          const userDoc = await db.collection("users").doc(userId.toLowerCase()).get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            // Check if user has a custom vocabulary sheet ID
+            if (userData?.vocabularySheetId) {
+              sheetId = userData.vocabularySheetId;
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to fetch user vocabulary sheet, using default:", err);
+        }
+      }
+
+      if (!sheetId) {
+        return res.status(500).json({error: "No vocabulary sheet configured. Please set up a default sheet or configure a personal vocabulary sheet."});
+      }
+
+      // Auth as the function's service account
+      const auth = await google.auth.getClient({
+        scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+      });
+      const sheets = google.sheets({version: "v4", auth});
+
+      // Fetch data from the sheet (assuming columns: English | Thai | Part of Speech | Example)
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: "A:D", // Adjust range based on your sheet structure
+      });
+
+      const rows = response.data.values || [];
+      if (rows.length === 0) {
+        return res.json({words: []});
+      }
+
+      // Skip header row and map to vocabulary objects
+      const words = rows.slice(1).map((row, index) => ({
+        id: `word_${index + 1}`,
+        english: row[0] || "",
+        thai: row[1] || "",
+        partOfSpeech: row[2] || "",
+        example: row[3] || "",
+      }));
+
+      return res.json({words});
+    } catch (err: unknown) {
+      console.error("get vocabulary error", err);
+      return res.status(500).json({error: "internal"});
+    }
+  });
+
+// Get user's flashcard progress
+apiRouter.get(
+  "/users/:id/flashcards",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const progressSnap = await db.collection("users")
+        .doc(id)
+        .collection("flashcardProgress")
+        .get();
+
+      const progress = progressSnap.docs.map((doc) => ({
+        wordId: doc.id,
+        ...doc.data(),
+      }));
+
+      return res.json({progress});
+    } catch (err: unknown) {
+      console.error("get flashcard progress error", err);
+      return res.status(500).json({error: "internal"});
+    }
+  });
+
+// Text-to-speech endpoint
+apiRouter.post(
+  "/text-to-speech",
+  async (req: Request, res: Response) => {
+    try {
+      const {text, language = "en-US"} = req.body || {};
+
+      if (!text) {
+        return res.status(400).json({error: "Text is required"});
+      }
+
+      // Create text-to-speech client
+      const client = new TextToSpeechClient();
+
+      // Configure the request
+      const request = {
+        input: {text},
+        voice: {
+          languageCode: language,
+          ssmlGender: "NEUTRAL" as const,
+        },
+        audioConfig: {
+          audioEncoding: "MP3" as const,
+        },
+      };
+
+      // Perform the text-to-speech request
+      const [response] = await client.synthesizeSpeech(request);
+      const audioContent = response.audioContent;
+
+      if (!audioContent) {
+        return res.status(500).json({error: "Failed to generate audio"});
+      }
+
+      // Return the audio as base64
+      res.setHeader("Content-Type", "application/json");
+      return res.json({
+        audio: audioContent.toString("base64"),
+        format: "mp3",
+      });
+    } catch (err: unknown) {
+      console.error("text-to-speech error", err);
+      return res.status(500).json({error: "internal"});
+    }
+  });
+
+// Update user's vocabulary sheet ID
+apiRouter.post(
+  "/users/:id/vocabulary-sheet",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const {vocabularySheetId} = req.body || {};
+
+      if (!vocabularySheetId) {
+        return res.status(400).json({error: "Vocabulary sheet ID is required"});
+      }
+
+      // Validate that the sheet ID format looks correct (basic validation)
+      if (!vocabularySheetId.match(/^[a-zA-Z0-9-_]+$/)) {
+        return res.status(400).json({error: "Invalid vocabulary sheet ID format"});
+      }
+
+      const now = new Date();
+      await db.collection("users").doc(id).update({
+        vocabularySheetId,
+        updatedAt: now,
+      });
+
+      return res.json({ok: true, vocabularySheetId});
+    } catch (err: unknown) {
+      console.error("update vocabulary sheet error", err);
+      return res.status(500).json({error: "internal"});
+    }
+  });
+
+// Update flashcard progress (rate difficulty)
+apiRouter.post(
+  "/users/:id/flashcards/:wordId/rate",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const wordId = req.params.wordId;
+      const {difficulty} = req.body || {}; // "easy", "medium", "hard"
+
+      if (!difficulty || !["easy", "medium", "hard"].includes(difficulty)) {
+        return res.status(400).json({error: "Invalid difficulty rating"});
+      }
+
+      const now = new Date();
+      const progressRef = db.collection("users")
+        .doc(id)
+        .collection("flashcardProgress")
+        .doc(wordId);
+
+      // Get current progress
+      const currentSnap = await progressRef.get();
+      const current = currentSnap.exists ? currentSnap.data() : null;
+
+      // Calculate next review date based on spaced repetition
+      let nextReviewDays = 1; // Default for hard
+      if (difficulty === "easy") {
+        nextReviewDays = current ? Math.min(current.interval * 2, 365) : 7;
+      } else if (difficulty === "medium") {
+        nextReviewDays = current ? Math.min(current.interval * 1.5, 30) : 3;
+      } else {
+        nextReviewDays = 1; // Hard - review tomorrow
+      }
+
+      const nextReview = new Date(now.getTime() + nextReviewDays * 24 * 60 * 60 * 1000);
+
+      // Update progress
+      await progressRef.set({
+        wordId,
+        difficulty,
+        interval: nextReviewDays,
+        lastReviewed: now,
+        nextReview,
+        reviewCount: (current?.reviewCount || 0) + 1,
+        updatedAt: now,
+      }, {merge: true});
+
+      return res.json({ok: true});
+    } catch (err: unknown) {
+      console.error("update flashcard progress error", err);
+      return res.status(500).json({error: "internal"});
+    }
+  });
+
 // List a student's appointments
 apiRouter.get(
   "/users/:id/appointments",
@@ -254,6 +477,7 @@ export const api = onRequest(
     // allow the express handler to read Stripe secrets
     secrets: [
       S_CALENDAR_ID,
+      S_VOCAB_SHEET_ID,
       defineSecret("STRIPE_SECRET_KEY"),
       defineSecret("STRIPE_PRICE_ID"),
     ],
