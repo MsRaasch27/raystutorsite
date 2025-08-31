@@ -5,18 +5,18 @@
   operator-linebreak,
   max-len
 */
-import {setGlobalOptions} from "firebase-functions";
-import {onRequest} from "firebase-functions/v2/https";
-import {onSchedule} from "firebase-functions/v2/scheduler";
-import {defineSecret} from "firebase-functions/params";
-import {google} from "googleapis";
+import { setGlobalOptions } from "firebase-functions";
+import { onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { defineSecret } from "firebase-functions/params";
+import { google } from "googleapis";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
-import express, {Request, Response} from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
-import {TextToSpeechClient} from "@google-cloud/text-to-speech";
+import { TextToSpeechClient } from "@google-cloud/text-to-speech";
 
-setGlobalOptions({maxInstances: 10});
+setGlobalOptions({ maxInstances: 10 });
 const S_CALENDAR_ID = defineSecret("GOOGLE_CALENDAR_ID");
 const S_VOCAB_SHEET_ID = defineSecret("GOOGLE_VOCAB_SHEET_ID");
 
@@ -57,16 +57,41 @@ apiRouter.post(
   "/hooks/form-submission",
   async (req: Request, res: Response) => {
     try {
-      const {name, email, sheetName, answers} = req.body || {};
+      const { name, email, sheetName, answers } = req.body || {};
       if (!email) {
-        return res.status(400).json({error: "Missing email in payload"});
+        return res.status(400).json({ error: "Missing email in payload" });
       }
       const userId = String(email).trim().toLowerCase();
+
+      // Extract age from answers if available
+      const age = answers && answers["Your Age"] ?
+        answers["Your Age"] :
+        null;
 
       // Extract goals from answers if available
       const goals = answers && answers["Your Language Goals"] ?
         answers["Your Language Goals"] :
         null;
+
+      // Extract frequency from answers if available
+      const frequency = answers && answers["How Often Would You Like to Take Lessons"] ?
+      answers["How Often Would You Like to Take Lessons"] :
+      null;
+
+      // Extract preferredtime from answers if available
+      const preferredtime = answers && answers["Preferred Lesson Times"] ?
+      answers["Preferred Lesson Times"] :
+      null;
+
+      // Extract timezone from answers if available
+      const timezone = answers && answers["Your Time Zone"] ?
+      answers["Your Time Zone"] :
+      null;
+
+      // Extract photo from answers if available
+      const photo = answers && answers["Your Photo"] ?
+      answers["Your Photo"] :
+      null;
 
       const now = new Date();
       await db.collection("users").doc(userId).set(
@@ -74,17 +99,22 @@ apiRouter.post(
           name: name || null,
           email: userId,
           sheetName: sheetName || null,
+          age: age,
           goals: goals,
+          frequency: frequency,
+          preferredtime: preferredtime,
+          timezone: timezone,
+          photo: photo,
           updatedAt: now,
           createdAt: now,
         },
-        {merge: true}
+        { merge: true }
       );
 
-      return res.status(200).json({ok: true, userId});
+      return res.status(200).json({ ok: true, userId });
     } catch (err: unknown) {
       console.error("form-submission error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -93,9 +123,9 @@ apiRouter.post(
   "/hooks/assessment-submission",
   async (req: Request, res: Response) => {
     try {
-      const {email, submittedAt, answers} = req.body || {};
+      const { email, submittedAt, answers } = req.body || {};
       if (!email) {
-        return res.status(400).json({error: "Missing email in payload"});
+        return res.status(400).json({ error: "Missing email in payload" });
       }
       const userId = String(email).trim().toLowerCase();
 
@@ -110,10 +140,10 @@ apiRouter.post(
         createdAt: now,
       });
 
-      return res.status(200).json({ok: true, assessmentId, userId});
+      return res.status(200).json({ ok: true, assessmentId, userId });
     } catch (err: unknown) {
       console.error("assessment-submission error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -124,11 +154,11 @@ apiRouter.get(
     try {
       const id = decodeURIComponent(req.params.id).trim().toLowerCase();
       const snap = await db.collection("users").doc(id).get();
-      if (!snap.exists) return res.status(404).json({error: "not found"});
-      return res.json({id, ...snap.data()});
+      if (!snap.exists) return res.status(404).json({ error: "not found" });
+      return res.json({ id, ...snap.data() });
     } catch (err: unknown) {
       console.error("get user error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -148,10 +178,10 @@ apiRouter.get(
         ...doc.data(),
       }));
 
-      return res.json({assessments});
+      return res.json({ assessments });
     } catch (err: unknown) {
       console.error("get assessments error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -187,14 +217,14 @@ apiRouter.get(
       }
 
       if (!sheetId) {
-        return res.status(500).json({error: "No vocabulary sheet configured. Please set up a default sheet or configure a personal vocabulary sheet."});
+        return res.status(500).json({ error: "No vocabulary sheet configured. Please set up a default sheet or configure a personal vocabulary sheet." });
       }
 
       // Auth as the function's service account
       const auth = await google.auth.getClient({
         scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
       });
-      const sheets = google.sheets({version: "v4", auth});
+      const sheets = google.sheets({ version: "v4", auth });
 
       // Fetch data from the sheet (assuming columns: English | Thai | Part of Speech | Example)
       const response = await sheets.spreadsheets.values.get({
@@ -204,7 +234,7 @@ apiRouter.get(
 
       const rows = response.data.values || [];
       if (rows.length === 0) {
-        return res.json({words: []});
+        return res.json({ words: [] });
       }
 
       // Skip header row and map to vocabulary objects
@@ -216,10 +246,10 @@ apiRouter.get(
         example: row[3] || "",
       }));
 
-      return res.json({words});
+      return res.json({ words });
     } catch (err: unknown) {
       console.error("get vocabulary error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -239,10 +269,10 @@ apiRouter.get(
         ...doc.data(),
       }));
 
-      return res.json({progress});
+      return res.json({ progress });
     } catch (err: unknown) {
       console.error("get flashcard progress error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -251,10 +281,10 @@ apiRouter.post(
   "/text-to-speech",
   async (req: Request, res: Response) => {
     try {
-      const {text, language = "en-US"} = req.body || {};
+      const { text, language = "en-US" } = req.body || {};
 
       if (!text) {
-        return res.status(400).json({error: "Text is required"});
+        return res.status(400).json({ error: "Text is required" });
       }
 
       // Create text-to-speech client
@@ -262,7 +292,7 @@ apiRouter.post(
 
       // Configure the request
       const request = {
-        input: {text},
+        input: { text },
         voice: {
           languageCode: language,
           ssmlGender: "NEUTRAL" as const,
@@ -277,7 +307,7 @@ apiRouter.post(
       const audioContent = response.audioContent;
 
       if (!audioContent) {
-        return res.status(500).json({error: "Failed to generate audio"});
+        return res.status(500).json({ error: "Failed to generate audio" });
       }
 
       // Return the audio as base64
@@ -288,7 +318,7 @@ apiRouter.post(
       });
     } catch (err: unknown) {
       console.error("text-to-speech error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -298,15 +328,15 @@ apiRouter.post(
   async (req: Request, res: Response) => {
     try {
       const id = decodeURIComponent(req.params.id).trim().toLowerCase();
-      const {vocabularySheetId} = req.body || {};
+      const { vocabularySheetId } = req.body || {};
 
       if (!vocabularySheetId) {
-        return res.status(400).json({error: "Vocabulary sheet ID is required"});
+        return res.status(400).json({ error: "Vocabulary sheet ID is required" });
       }
 
       // Validate that the sheet ID format looks correct (basic validation)
       if (!vocabularySheetId.match(/^[a-zA-Z0-9-_]+$/)) {
-        return res.status(400).json({error: "Invalid vocabulary sheet ID format"});
+        return res.status(400).json({ error: "Invalid vocabulary sheet ID format" });
       }
 
       const now = new Date();
@@ -315,10 +345,10 @@ apiRouter.post(
         updatedAt: now,
       });
 
-      return res.json({ok: true, vocabularySheetId});
+      return res.json({ ok: true, vocabularySheetId });
     } catch (err: unknown) {
       console.error("update vocabulary sheet error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -329,10 +359,10 @@ apiRouter.post(
     try {
       const id = decodeURIComponent(req.params.id).trim().toLowerCase();
       const wordId = req.params.wordId;
-      const {difficulty} = req.body || {}; // "easy", "medium", "hard"
+      const { difficulty } = req.body || {}; // "easy", "medium", "hard"
 
       if (!difficulty || !["easy", "medium", "hard"].includes(difficulty)) {
-        return res.status(400).json({error: "Invalid difficulty rating"});
+        return res.status(400).json({ error: "Invalid difficulty rating" });
       }
 
       const now = new Date();
@@ -366,12 +396,12 @@ apiRouter.post(
         nextReview,
         reviewCount: (current?.reviewCount || 0) + 1,
         updatedAt: now,
-      }, {merge: true});
+      }, { merge: true });
 
-      return res.json({ok: true});
+      return res.json({ ok: true });
     } catch (err: unknown) {
       console.error("update flashcard progress error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -412,10 +442,10 @@ apiRouter.get(
         id: d.id,
         ...(d.data() as Record<string, unknown>),
       }));
-      return res.json({items: data});
+      return res.json({ items: data });
     } catch (err) {
       console.error("list appointments error", err);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -423,17 +453,19 @@ apiRouter.post(
   "/billing/create-checkout-session",
   async (req: Request, res: Response) => {
     try {
-      const {email, returnTo} = req.body || {};
-      if (!email) return res.status(400).json({error: "email required"});
+      const { email, returnTo, priceId } = req.body || {};
+      console.log("Received checkout request:", { email, returnTo, priceId, timestamp: new Date().toISOString() });
+
+      if (!email) return res.status(400).json({ error: "email required" });
+      if (!priceId) return res.status(400).json({ error: "priceId required" });
 
       const stripeKey = process.env.STRIPE_SECRET_KEY;
-      const priceId = process.env.STRIPE_PRICE_ID;
-      if (!stripeKey || !priceId) {
+      if (!stripeKey) {
         console.error("Stripe not configured");
-        return res.status(500).json({error: "Stripe not configured"});
+        return res.status(500).json({ error: "Stripe not configured" });
       }
 
-      const stripe = new Stripe(stripeKey, {apiVersion: "2025-07-30.basil"});
+      const stripe = new Stripe(stripeKey, { apiVersion: "2025-07-30.basil" });
       const userId = String(email).trim().toLowerCase();
 
       const base =
@@ -445,21 +477,251 @@ apiRouter.post(
       const success = (returnTo as string) ||
         `${base}/student/${encodeURIComponent(userId)}`;
 
+      // Determine if this is a subscription or one-time payment
+      const isSubscription = priceId && (
+        priceId.includes("basic") ||
+        priceId.includes("advanced") ||
+        priceId.includes("premium") ||
+        priceId.includes("unlimited")
+      );
+
+      console.log("Creating checkout session:", { priceId, isSubscription });
+
       const session = await stripe.checkout.sessions.create({
-        mode: "subscription",
+        mode: isSubscription ? "subscription" : "payment",
         customer_email: email,
-        line_items: [{price: priceId, quantity: 1}],
+        line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${success}?purchase=success`,
         cancel_url: `${success}?purchase=cancel`,
         // So our webhook can map back to the Firestore user:
-        metadata: {userId},
+        metadata: { userId },
         // Optional: automatic_tax: { enabled: true },
       });
 
-      return res.json({url: session.url});
+      return res.json({ url: session.url });
     } catch (e) {
       console.error("create-checkout-session error", e);
-      return res.status(500).json({error: "internal"});
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Validate secret codes for free trial access
+apiRouter.post(
+  "/billing/validate-secret-code",
+  async (req: Request, res: Response) => {
+    try {
+      const { email, code } = req.body || {};
+      if (!email || !code) {
+        return res.status(400).json({ error: "email and code required" });
+      }
+
+      const userId = String(email).trim().toLowerCase();
+
+      // Define valid secret codes with their durations (in days)
+      const validCodes: Record<string, { duration: number; description: string }> = {
+        "TRAINING2024": { duration: 30, description: "Training Access" },
+      };
+
+      const upperCode = code.toUpperCase();
+      if (!validCodes[upperCode]) {
+        return res.json({ valid: false, error: "Invalid code" });
+      }
+
+      // Check if code has already been used by this user
+      const userDoc = await db.collection("users").doc(userId).get();
+      const userData = userDoc.data();
+
+      if (userData?.usedSecretCodes?.includes(upperCode)) {
+        return res.json({ valid: false, error: "Code already used" });
+      }
+
+      // Activate the user's account for the specified duration
+      const now = new Date();
+      const codeConfig = validCodes[upperCode];
+      const trialEndDate = new Date(now.getTime() + codeConfig.duration * 24 * 60 * 60 * 1000);
+
+      await db.collection("users").doc(userId).set({
+        billing: {
+          active: true,
+          trialCode: upperCode,
+          trialEndDate: trialEndDate,
+          trialDuration: codeConfig.duration,
+          trialDescription: codeConfig.description,
+          lastEvent: "trial.activated",
+          updatedAt: now,
+        },
+        usedSecretCodes: admin.firestore.FieldValue.arrayUnion(upperCode),
+        updatedAt: now,
+      }, { merge: true });
+
+      return res.json({
+        valid: true,
+        duration: codeConfig.duration,
+        description: codeConfig.description,
+      });
+    } catch (e) {
+      console.error("validate-secret-code error", e);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Test endpoint
+apiRouter.get("/test", (_req: Request, res: Response) => {
+  return res.json({ message: "API router is working" });
+});
+
+// Reset calendar sync token
+apiRouter.post("/reset-calendar-sync", async (_req: Request, res: Response) => {
+  try {
+    const calendarId = process.env.GOOGLE_CALENDAR_ID;
+    if (!calendarId) {
+      return res.status(500).json({ error: "GOOGLE_CALENDAR_ID not configured" });
+    }
+
+    // Delete the sync token to force a full sync
+    const stateRef = db.collection("calendarSync").doc(calendarId);
+    await stateRef.delete();
+
+    return res.json({ message: "Calendar sync token reset successfully. Next sync will be a full sync." });
+  } catch (error) {
+    console.error("Reset calendar sync error:", error);
+    return res.status(500).json({ error: "Failed to reset sync token", details: String(error) });
+  }
+});
+
+// Test calendar access
+apiRouter.get("/test-calendar", async (_req: Request, res: Response) => {
+  try {
+    const calendarId = process.env.GOOGLE_CALENDAR_ID;
+    if (!calendarId) {
+      return res.status(500).json({ error: "GOOGLE_CALENDAR_ID not configured" });
+    }
+
+    // Auth as the function's service account
+    const auth = await google.auth.getClient({
+      scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+    });
+    const calendar = google.calendar({ version: "v3", auth });
+
+    // List events from the last 30 days to the next 30 days
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const resp = await calendar.events.list({
+      calendarId,
+      timeMin: thirtyDaysAgo.toISOString(),
+      timeMax: thirtyDaysFromNow.toISOString(),
+      singleEvents: true,
+      maxResults: 10,
+    });
+
+    const events = resp.data.items || [];
+
+    return res.json({
+      calendarId,
+      totalEvents: events.length,
+      events: events.map((ev) => ({
+        id: ev.id,
+        summary: ev.summary,
+        start: ev.start,
+        end: ev.end,
+        attendees: ev.attendees?.map((a) => ({
+          email: a.email,
+          organizer: a.organizer,
+          self: a.self,
+        })) || [],
+        status: ev.status,
+      })),
+    });
+  } catch (error) {
+    console.error("Calendar test error:", error);
+    return res.status(500).json({ error: "Calendar access failed", details: String(error) });
+  }
+});
+
+// Get Stripe price IDs for frontend
+apiRouter.get(
+  "/billing/price-ids",
+  async (_req: Request, res: Response) => {
+    try {
+      console.log("Price IDs endpoint called");
+      // Return the configured price IDs from Firebase config
+      return res.json({
+        basic: "price_1S1xoYGCvd9jQhpVhbUXWMA4",
+        advanced: "price_1S1xpkGCvd9jQhpVyD5tHbvO",
+        premium: "price_1S1xqMGCvd9jQhpVRoy9yfHM",
+        unlimited: "price_1RyBw1GCvd9jQhpVSyp9Od3f",
+        addon: "price_1S1xsRGCvd9jQhpVSQ8TNLPB",
+      });
+    } catch (e) {
+      console.error("get price-ids error", e);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Get user's session count and plan info
+apiRouter.get(
+  "/users/:id/sessions",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const userSnap = await db.collection("users").doc(id).get();
+
+      if (!userSnap.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userData = userSnap.data();
+      const billing = userData?.billing || {};
+
+      // Get current month's sessions
+      const now = new Date();
+      const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+      // Count sessions this month
+      const sessionsSnap = await db.collection("users")
+        .doc(id)
+        .collection("appointments")
+        .where("startTimestamp", ">=", admin.firestore.Timestamp.fromDate(currentMonth))
+        .where("startTimestamp", "<", admin.firestore.Timestamp.fromDate(nextMonth))
+        .get();
+
+      const sessionsThisMonth = sessionsSnap.docs.length;
+
+      // Get plan limits
+      const planLimits: Record<string, number> = {
+        basic: 4,
+        advanced: 8,
+        premium: 12,
+        unlimited: 30,
+        trial: 999, // Unlimited for trial
+      };
+
+      const currentPlan = billing.planType || "trial";
+      const monthlyLimit = planLimits[currentPlan] || 0;
+      const addonSessions = billing.addonSessions || 0;
+      const totalAvailable = monthlyLimit + addonSessions;
+      const sessionsRemaining = Math.max(0, totalAvailable - sessionsThisMonth);
+
+      return res.json({
+        sessionsThisMonth,
+        sessionsRemaining,
+        monthlyLimit,
+        addonSessions,
+        totalAvailable,
+        currentPlan,
+        canSchedule: sessionsRemaining > 0,
+        billing: {
+          active: billing.active || false,
+          planType: currentPlan,
+          trialEndDate: billing.trialEndDate,
+        },
+      });
+    } catch (err: unknown) {
+      console.error("get sessions error", err);
+      return res.status(500).json({ error: "internal" });
     }
   });
 
@@ -468,7 +730,7 @@ app.use("/api", apiRouter);
 
 // 404
 app.use((_req: Request, res: Response) =>
-  res.status(404).json({error: "Not found"}));
+  res.status(404).json({ error: "Not found" }));
 
 // Export function
 export const api = onRequest(
@@ -504,7 +766,7 @@ export const syncCalendar = onSchedule(
     const auth = await google.auth.getClient({
       scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
     });
-    const calendar = google.calendar({version: "v3", auth});
+    const calendar = google.calendar({ version: "v3", auth });
 
     // Where we keep delta-sync state
     const stateRef = db.collection("calendarSync").doc(calendarId);
@@ -584,7 +846,7 @@ export const syncCalendar = onSchedule(
         .doc(uid)
         .collection("appointments")
         .doc(eventId);
-      stage(() => batch.set(ref, data, {merge: true}));
+      stage(() => batch.set(ref, data, { merge: true }));
     };
     const deleteForStudent = (uid: string, eventId: string) => {
       const ref = db
@@ -607,7 +869,7 @@ export const syncCalendar = onSchedule(
           maxResults: 2500,
           pageToken,
           ...(syncToken ?
-            {syncToken} :
+            { syncToken } :
             {
               // First run: pull **upcoming** and **recent past** events
               // (last 90 days)
@@ -624,6 +886,10 @@ export const syncCalendar = onSchedule(
         pageToken = resp.data.nextPageToken || undefined;
         nextSyncToken = resp.data.nextSyncToken || nextSyncToken;
 
+        console.log(`syncCalendar: found ${items.length} events in calendar`);
+        console.log(`syncCalendar: now = ${now.toISOString()}, 90 days ago = ${new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()}`);
+        console.log(`syncCalendar: using syncToken: ${syncToken ? "yes" : "no"}`);
+
         for (const ev of items) {
           processed++;
           const eventId = ev.id;
@@ -633,16 +899,26 @@ export const syncCalendar = onSchedule(
           const organizerEmail = ev.organizer?.email?.toLowerCase() ||
             creatorEmail || null;
 
-          // Choose the first attendee that's not organizer/creator/self
+          // Choose the first attendee that's not the calendar owner
+          // This handles both manual bookings and appointment scheduling page bookings
           const firstStudentAttendee =
             (ev.attendees || []).find(
               (a) =>
                 !!a.email &&
-                !a.organizer &&
                 !a.self &&
                 a.email.toLowerCase() !== organizerEmail &&
                 a.email.toLowerCase() !== creatorEmail,
             ) || null;
+
+          console.log(`syncCalendar: event ${eventId} has ${ev.attendees?.length || 0} attendees, student attendee: ${firstStudentAttendee?.email || "none"}`);
+          if (ev.attendees && ev.attendees.length > 0) {
+            console.log(`syncCalendar: event ${eventId} attendee details:`, ev.attendees.map((a) => ({
+              email: a.email,
+              organizer: a.organizer,
+              self: a.self,
+              responseStatus: a.responseStatus,
+            })));
+          }
 
           // For cancellations, we must clean up anything we previously wrote
           if (ev.status === "cancelled") {
@@ -661,7 +937,7 @@ export const syncCalendar = onSchedule(
                     studentId,
                     updated: ev.updated || new Date().toISOString(),
                   },
-                  {merge: true},
+                  { merge: true },
                 ),
               );
             }
@@ -670,6 +946,8 @@ export const syncCalendar = onSchedule(
 
           const startISO = toISO(ev.start);
           const endISO = toISO(ev.end);
+
+          console.log(`syncCalendar: event ${eventId} - start: ${startISO}, end: ${endISO}, isUpcoming: ${isUpcoming(startISO, endISO)}, isRecent: ${isRecent(startISO, endISO)}`);
 
           // Keep **upcoming** events and **recent past** events (last 90 days)
           if (!isUpcoming(startISO, endISO) && !isRecent(startISO, endISO)) {
@@ -704,6 +982,7 @@ export const syncCalendar = onSchedule(
           // user
           const userSnap = await db.collection("users").doc(candidateId).get();
           if (!userSnap.exists) {
+            console.log(`syncCalendar: candidate attendee ${candidateId} is not a registered user`);
             // If we had previously attached to somebody, detach
             const idxSnap = await indexRef(eventId).get();
             const prevStudent: string | undefined = idxSnap.exists ?
@@ -733,6 +1012,8 @@ export const syncCalendar = onSchedule(
               (p) => p.entryPointType === "video",
             )?.uri ||
             null;
+
+          console.log(`syncCalendar: creating appointment for student ${candidateId}, event ${eventId}`);
 
           // Upsert only under the matched student's collection
           upsertForStudent(candidateId, eventId, {
@@ -776,7 +1057,7 @@ export const syncCalendar = onSchedule(
                 status: ev.status,
                 updated: ev.updated || new Date().toISOString(),
               },
-              {merge: true},
+              { merge: true },
             ),
           );
         }
@@ -787,8 +1068,8 @@ export const syncCalendar = onSchedule(
       // Save nextSyncToken for cheap deltas next run
       if (nextSyncToken) {
         await stateRef.set(
-          {nextSyncToken, updatedAt: new Date()},
-          {merge: true},
+          { nextSyncToken, updatedAt: new Date() },
+          { merge: true },
         );
       }
 
@@ -821,8 +1102,8 @@ export const syncCalendar = onSchedule(
           "syncCalendar: sync token invalid; resetting for full sync next run.",
         );
         await stateRef.set(
-          {nextSyncToken: null, resetAt: new Date()},
-          {merge: true},
+          { nextSyncToken: null, resetAt: new Date() },
+          { merge: true },
         );
         return;
       }
@@ -894,90 +1175,108 @@ export const stripeWebhook = onRequest(
               updatedAt: new Date(),
             },
           },
-          {merge: true}
+          { merge: true }
         );
       };
 
       switch (event.type) {
-      case "checkout.session.completed": {
-        const s = event.data.object as Stripe.Checkout.Session;
-        const uid =
+        case "checkout.session.completed": {
+          const s = event.data.object as Stripe.Checkout.Session;
+          const uid =
             (s.metadata?.userId as string) ||
             (s.customer_email as string) ||
             "";
-        if (!uid) break;
+          if (!uid) break;
 
-        const subscriptionId =
+          const subscriptionId =
             typeof s.subscription === "string" ?
               s.subscription :
               s.subscription?.id;
-        const customerId =
+          const customerId =
             typeof s.customer === "string" ?
               s.customer :
               s.customer?.id;
 
-        await markActive(uid.toLowerCase(), true, {
-          customerId: customerId || null,
-          subscriptionId: subscriptionId || null,
-          lastEvent: "checkout.session.completed",
-        });
-        break;
-      }
+          // Determine plan type from line items
+          const lineItems = s.line_items?.data || [];
+          let planType = "trial";
+          let addonSessions = 0;
 
-      case "customer.subscription.updated":
-      case "customer.subscription.created": {
-        const sub = event.data.object as Stripe.Subscription;
-        let uid = (sub.metadata?.userId as string) || "";
-        if (!uid) {
-          const customer = (await stripe.customers.retrieve(
-              sub.customer as string
-          )) as Stripe.Customer;
-          uid = (customer.email || "").toLowerCase();
+          for (const item of lineItems) {
+            const priceId = item.price?.id || "";
+            if (priceId.includes("basic")) planType = "basic";
+            else if (priceId.includes("advanced")) planType = "advanced";
+            else if (priceId.includes("premium")) planType = "premium";
+            else if (priceId.includes("unlimited")) planType = "unlimited";
+            else if (priceId.includes("addon")) {
+              addonSessions += item.quantity || 1;
+            }
+          }
+
+          await markActive(uid.toLowerCase(), true, {
+            customerId: customerId || null,
+            subscriptionId: subscriptionId || null,
+            planType: planType,
+            addonSessions: addonSessions,
+            lastEvent: "checkout.session.completed",
+          });
+          break;
         }
-        if (!uid) break;
 
-        const isActive =
+        case "customer.subscription.updated":
+        case "customer.subscription.created": {
+          const sub = event.data.object as Stripe.Subscription;
+          let uid = (sub.metadata?.userId as string) || "";
+          if (!uid) {
+            const customer = (await stripe.customers.retrieve(
+              sub.customer as string
+            )) as Stripe.Customer;
+            uid = (customer.email || "").toLowerCase();
+          }
+          if (!uid) break;
+
+          const isActive =
             sub.status === "active" || sub.status === "trialing";
 
-        const withCpe = sub as Stripe.Subscription & {
+          const withCpe = sub as Stripe.Subscription & {
             current_period_end?: number;
           };
-        const cpeUnix = withCpe.current_period_end;
-        const cpe = cpeUnix ? new Date(cpeUnix * 1000) : null;
+          const cpeUnix = withCpe.current_period_end;
+          const cpe = cpeUnix ? new Date(cpeUnix * 1000) : null;
 
-        await markActive(uid, isActive, {
-          customerId: sub.customer,
-          subscriptionId: sub.id,
-          status: sub.status,
-          currentPeriodEnd: cpe,
-          lastEvent: event.type,
-        });
-        break;
-      }
-
-      case "customer.subscription.deleted": {
-        const sub = event.data.object as Stripe.Subscription;
-        let uid = (sub.metadata?.userId as string) || "";
-        if (!uid) {
-          const customer = (await stripe.customers.retrieve(
-              sub.customer as string
-          )) as Stripe.Customer;
-          uid = (customer.email || "").toLowerCase();
+          await markActive(uid, isActive, {
+            customerId: sub.customer,
+            subscriptionId: sub.id,
+            status: sub.status,
+            currentPeriodEnd: cpe,
+            lastEvent: event.type,
+          });
+          break;
         }
-        if (!uid) break;
 
-        await markActive(uid, false, {
-          customerId: sub.customer,
-          subscriptionId: sub.id,
-          status: sub.status,
-          lastEvent: "customer.subscription.deleted",
-        });
-        break;
-      }
+        case "customer.subscription.deleted": {
+          const sub = event.data.object as Stripe.Subscription;
+          let uid = (sub.metadata?.userId as string) || "";
+          if (!uid) {
+            const customer = (await stripe.customers.retrieve(
+              sub.customer as string
+            )) as Stripe.Customer;
+            uid = (customer.email || "").toLowerCase();
+          }
+          if (!uid) break;
 
-      default:
-        // ignore other events
-        break;
+          await markActive(uid, false, {
+            customerId: sub.customer,
+            subscriptionId: sub.id,
+            status: sub.status,
+            lastEvent: "customer.subscription.deleted",
+          });
+          break;
+        }
+
+        default:
+          // ignore other events
+          break;
       }
 
       res.status(200).send("ok");

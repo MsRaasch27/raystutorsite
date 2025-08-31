@@ -1,8 +1,24 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { FlashcardDeck } from "../../../components/FlashcardDeck";
 import { VocabularySettings } from "../../../components/VocabularySettings";
+import { PricingModal, PricingOption } from "../../../components/PricingModal";
+
+type SessionInfo = {
+  sessionsThisMonth: number;
+  sessionsRemaining: number;
+  monthlyLimit: number;
+  addonSessions: number;
+  totalAvailable: number;
+  currentPlan: string;
+  canSchedule: boolean;
+  billing: {
+    active: boolean;
+    planType: string;
+    trialEndDate?: string;
+  };
+};
 
 type User = {
   id: string;
@@ -77,33 +93,61 @@ export function StudentPageClient({
   const [activeTab, setActiveTab] = useState<TabType>('practice');
   const [checkingOut, setCheckingOut] = useState(false);
   const [currentVocabularySheetId, setCurrentVocabularySheetId] = useState(user.vocabularySheetId);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [preSelectPlan, setPreSelectPlan] = useState<string | undefined>(undefined);
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+  const [loadingSessions, setLoadingSessions] = useState(true);
 
   const isPaid = !!user.billing?.active;
   const hasCompletedFirstLesson = past.items.length > 0;
   const locked = hasCompletedFirstLesson && !isPaid;
   const hasCompletedAssessment = assessments.length > 0;
 
-  const startCheckout = useCallback(async () => {
+  // Fetch session information
+  const fetchSessionInfo = useCallback(async () => {
     try {
-      setCheckingOut(true);
-      const resp = await fetch("/api/billing/create-checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          returnTo: `${window.location.origin}/student/${encodeURIComponent(user.id)}`
-        })
-      });
-      const data = await resp.json();
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        alert("Unable to start checkout. Please try again.");
+      setLoadingSessions(true);
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/sessions`);
+      if (response.ok) {
+        const data = await response.json();
+        setSessionInfo(data);
       }
+    } catch (error) {
+      console.error("Failed to fetch session info:", error);
     } finally {
-      setCheckingOut(false);
+      setLoadingSessions(false);
     }
-  }, [user.email, user.id]);
+  }, [user.id]);
+
+  // Fetch session info on component mount
+  useEffect(() => {
+    if (isPaid) {
+      fetchSessionInfo();
+    } else {
+      setLoadingSessions(false);
+    }
+  }, [isPaid, fetchSessionInfo]);
+
+  const handlePlanSelection = useCallback((option: PricingOption) => {
+    setShowPricingModal(false);
+    // If it's a trial code, the backend already activated the account
+    if (option.secretCode) {
+      window.location.reload(); // Refresh to show unlocked state
+    } else {
+      // Refresh session info after purchase
+      setTimeout(() => fetchSessionInfo(), 2000);
+    }
+  }, [fetchSessionInfo]);
+
+  const openPricingModal = useCallback(() => {
+    setPreSelectPlan(undefined);
+    setShowPricingModal(true);
+  }, []);
+
+  const openPricingModalWithPlan = useCallback((planToPreSelect: string) => {
+    setPreSelectPlan(planToPreSelect);
+    setShowPricingModal(true);
+  }, []);
 
   // Memoize appointment rendering to prevent unnecessary re-renders
   const renderAppointment = useCallback((appt: Appt, isPast: boolean = false) => {
@@ -183,6 +227,18 @@ export function StudentPageClient({
         return (
           <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">🗓️ Upcoming Lessons</h2>
+            
+            {/* Sync Notice */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
+              <div className="flex items-start">
+                <div className="text-blue-500 mr-2 mt-0.5">⏱️</div>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">New appointments may take up to 5 minutes to appear</p>
+                  <p className="text-blue-600">If you just booked a lesson and don&apos;t see it here, please refresh the page in a few minutes.</p>
+                </div>
+              </div>
+            </div>
+            
             {upcoming.items.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-4xl mb-4">📅</div>
@@ -198,9 +254,7 @@ export function StudentPageClient({
       
       case 'practice':
         return (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">🎯 Extra Practice</h2>
-            
+          <div>            
             {/* Hero's Journey Progress */}
             <div className="mb-8">
               <h3 className="text-xl font-bold text-gray-800 mb-4">🏆 My Progress</h3>
@@ -284,6 +338,58 @@ export function StudentPageClient({
         </div>
       </section>
 
+      {/* Session Info Banner (for paid users) */}
+      {isPaid && sessionInfo && (
+        <section className="max-w-6xl mx-auto px-6 pt-6">
+          <div className={`border rounded-lg p-4 ${
+            sessionInfo.sessionsRemaining > 0 
+              ? "bg-green-50 border-green-200" 
+              : "bg-red-50 border-red-200"
+          }`}>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className={sessionInfo.sessionsRemaining > 0 ? "text-green-800" : "text-red-800"}>
+                <div className="font-semibold text-lg">
+                  {sessionInfo.sessionsRemaining > 0 ? "📚 Sessions Available" : "⚠️ No Sessions Left"}
+                </div>
+                <div className="text-sm">
+                  {sessionInfo.sessionsRemaining > 0 
+                    ? `${sessionInfo.sessionsRemaining} of ${sessionInfo.totalAvailable} sessions remaining this month`
+                    : "You've used all your sessions this month. Purchase add-on sessions to continue."
+                  }
+                </div>
+                <div className="text-xs mt-1">
+                  Plan: {sessionInfo.currentPlan.charAt(0).toUpperCase() + sessionInfo.currentPlan.slice(1)} 
+                  ({sessionInfo.monthlyLimit} monthly + {sessionInfo.addonSessions} add-on)
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                {/* Change Plan Button */}
+                <button
+                  onClick={openPricingModal}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-sm"
+                >
+                  🔄 Change Plan
+                </button>
+                
+                {/* Add-on Sessions Button */}
+                <button
+                  onClick={() => openPricingModalWithPlan('addon')}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                    sessionInfo.sessionsRemaining === 0 
+                      ? "bg-red-600 text-white hover:bg-red-700" 
+                      : "bg-orange-600 text-white hover:bg-orange-700"
+                  }`}
+                >
+                  {sessionInfo.sessionsRemaining === 0 ? "🚨 Buy Add-on Sessions" : "➕ Buy Add-on Sessions"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Lock banner (appears after first lesson if not paid) */}
       {locked && (
         <section className="max-w-6xl mx-auto px-6 pt-6">
@@ -295,11 +401,10 @@ export function StudentPageClient({
               </div>
             </div>
             <button
-              onClick={startCheckout}
-              disabled={checkingOut}
-              className="bg-yellow-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-yellow-700 disabled:opacity-60"
+              onClick={openPricingModal}
+              className="bg-yellow-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-yellow-700"
             >
-              {checkingOut ? "Redirecting…" : "Unlock with a Plan"}
+              Choose a Plan
             </button>
           </div>
         </section>
@@ -326,25 +431,34 @@ export function StudentPageClient({
               📝 Take Assessment
             </a>
           )}
-          <a 
-            href="https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ1YL7elo0lkIxv6Su3_AInKisXz3XdiRbJ_iEc6bxs2UCBGV9TZy8Z61AxhTj3cN8idri6VX8LA" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg inline-block text-center"
-          >
-            📅 Schedule Lesson
-          </a>
-
-          {/* Extra CTA in the button row when locked */}
-          {locked && (
-            <button
-              onClick={startCheckout}
-              disabled={checkingOut}
-              className="bg-amber-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-amber-700 transition-colors shadow-lg inline-block text-center disabled:opacity-60"
+          {locked ? (
+            <button 
+              disabled
+              className="bg-gray-400 text-gray-600 px-8 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
+              title="Schedule lessons after purchasing a plan"
             >
-              {checkingOut ? "Redirecting…" : "Buy a Plan"}
+              📅 Schedule Lesson
             </button>
+          ) : sessionInfo && !sessionInfo.canSchedule ? (
+            <button 
+              disabled
+              className="bg-gray-400 text-gray-600 px-8 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
+              title="No sessions remaining. Purchase add-on sessions to continue."
+            >
+              📅 Schedule Lesson
+            </button>
+          ) : (
+            <a 
+              href="https://calendly.com/msraasch27/50min" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg inline-block text-center"
+            >
+              📅 Schedule Lesson
+            </a>
           )}
+
+
         </div>
       </section>
 
@@ -403,16 +517,24 @@ export function StudentPageClient({
                 Purchase a plan to regain full access to lessons and practice.
               </div>
               <button
-                onClick={startCheckout}
-                disabled={checkingOut}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-60"
+                onClick={openPricingModal}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700"
               >
-                {checkingOut ? "Redirecting…" : "Buy a Plan"}
+                Choose a Plan
               </button>
             </div>
           </div>
         )}
       </section>
+
+      {/* Pricing Modal */}
+      <PricingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        onSelectPlan={handlePlanSelection}
+        userEmail={user.email}
+        preSelectPlan={preSelectPlan}
+      />
     </main>
   );
 }

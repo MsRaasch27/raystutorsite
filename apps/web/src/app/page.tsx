@@ -86,7 +86,7 @@ export default async function HomePage() {
           <div className="bg-gray-100 rounded-lg p-2 md:p-4 relative">
             <div className="relative overflow-hidden rounded-lg" style={{ height: '400px', minHeight: '400px' }}>
               <iframe 
-                src="https://calendar.google.com/calendar/embed?src=851d007aa799df38b9c1c26d7a66fbdd6401620026e6b7429e535849df9447dd%40group.calendar.google.com&ctz=Asia%2FBangkok" 
+                src="https://calendly.com/msraasch27/50min" 
                 style={{ 
                   border: 0,
                   width: '100%',
