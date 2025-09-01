@@ -21,6 +21,9 @@ setGlobalOptions({ maxInstances: 10 });
 const S_CALENDAR_ID = defineSecret("GOOGLE_CALENDAR_ID");
 const S_VOCAB_SHEET_ID = defineSecret("GOOGLE_VOCAB_SHEET_ID");
 const S_TEMPLATE_SHEET_ID = defineSecret("GOOGLE_TEMPLATE_SHEET_ID");
+const S_OAUTH_CLIENT_ID = defineSecret("GOOGLE_OAUTH_CLIENT_ID");
+const S_OAUTH_CLIENT_SECRET = defineSecret("GOOGLE_OAUTH_CLIENT_SECRET");
+const S_OAUTH_REDIRECT_URI = defineSecret("GOOGLE_OAUTH_REDIRECT_URI");
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -41,6 +44,104 @@ app.use(
   })
 );
 app.use(express.json());
+
+// ----- Google OAuth helper -----
+/**
+ * Creates and returns a Google OAuth2 client with configured credentials
+ * @return {google.auth.OAuth2} The configured OAuth2 client
+ */
+function getOAuth2Client() {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID || S_OAUTH_CLIENT_ID.value();
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET || S_OAUTH_CLIENT_SECRET.value();
+  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || S_OAUTH_REDIRECT_URI.value();
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+
+/**
+ * Gets a valid OAuth2 client with refreshed tokens if needed
+ * @return {Promise<any | null>} The configured OAuth2 client or null if no valid tokens
+ */
+async function getValidOAuth2Client(): Promise<any | null> {
+  try {
+    const oauthDoc = await db.collection("integrations").doc("google_oauth").get();
+    if (!oauthDoc.exists) {
+      return null;
+    }
+
+    const tokens = (oauthDoc.data() as any)?.tokens;
+    if (!tokens) {
+      return null;
+    }
+
+    const oauth2Client = getOAuth2Client();
+    oauth2Client.setCredentials(tokens);
+
+    // Check if tokens are expired and refresh if needed
+    if (tokens.expiry_date && Date.now() >= tokens.expiry_date) {
+      console.log("OAuth tokens expired, attempting to refresh...");
+      try {
+        const { credentials } = await oauth2Client.refreshAccessToken();
+
+        // Update stored tokens
+        await db.collection("integrations").doc("google_oauth").set({
+          tokens: credentials,
+          updatedAt: new Date(),
+        }, { merge: true });
+
+        oauth2Client.setCredentials(credentials);
+        console.log("OAuth tokens refreshed successfully");
+      } catch (refreshError) {
+        console.error("Failed to refresh OAuth tokens:", refreshError);
+        return null;
+      }
+    }
+
+    return oauth2Client;
+  } catch (error) {
+    console.error("Error getting valid OAuth2 client:", error);
+    return null;
+  }
+}
+
+/**
+ * Fetches the user's Google profile picture URL
+ * @param {string} email - The user's email address
+ * @return {Promise<string | null>} The profile picture URL or null if not available
+ */
+async function fetchGoogleProfilePicture(email: string): Promise<string | null> {
+  try {
+    const oauth2Client = await getValidOAuth2Client();
+    if (!oauth2Client) {
+      console.log("No valid OAuth client available for fetching profile picture");
+      return null;
+    }
+
+    // Use Google People API to get user profile
+    const people = google.people({ version: "v1", auth: oauth2Client });
+
+    // First, get the user's profile
+    const profileResponse = await people.people.get({
+      resourceName: "people/me",
+      personFields: "photos",
+    });
+
+    const photos = profileResponse.data.photos;
+    if (photos && photos.length > 0) {
+      // Get the profile picture (usually the first photo)
+      const profilePhoto = photos.find((photo) => photo.metadata?.primary) || photos[0];
+      if (profilePhoto?.url) {
+        console.log(`Fetched Google profile picture for ${email}: ${profilePhoto.url}`);
+        return profilePhoto.url;
+      }
+    }
+
+    console.log(`No profile picture found for ${email}`);
+    return null;
+  } catch (error) {
+    console.error(`Error fetching Google profile picture for ${email}:`, error);
+    return null;
+  }
+}
 
 /**
  * Mapping of assessment answer options to CEFR levels
@@ -178,6 +279,55 @@ apiRouter.get("/health", (_req: Request, res: Response) => {
   });
 });
 
+// Begin Google OAuth
+apiRouter.get("/auth/google/start", async (_req: Request, res: Response) => {
+  try {
+    const oauth2Client = getOAuth2Client();
+    const scopes = [
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/cloud-translation",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/userinfo.email",
+    ];
+    const url = oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      prompt: "consent",
+      scope: scopes,
+    });
+    res.redirect(url);
+  } catch (e) {
+    console.error("oauth start error", e);
+    res.status(500).json({ error: "oauth_start_failed" });
+  }
+});
+
+apiRouter.get("/auth/google/callback", async (req: Request, res: Response) => {
+  try {
+    const { code } = req.query as { code?: string };
+    if (!code) {
+      res.status(400).json({ error: "missing_code" });
+      return;
+    }
+    const oauth2Client = getOAuth2Client();
+    const { tokens } = await oauth2Client.getToken(code);
+    if (!tokens.refresh_token) {
+      // If no refresh token, user may have already consented; force prompt next time
+      console.warn("No refresh token returned; consider removing prior consent");
+    }
+    // Store tokens under a well-known doc (single admin integration)
+    await db.collection("integrations").doc("google_oauth").set({
+      tokens,
+      updatedAt: new Date(),
+    }, { merge: true });
+    res.send("Google Drive/Sheets connected. You can close this window.");
+  } catch (e) {
+    console.error("oauth callback error", e);
+    res.status(500).json({ error: "oauth_callback_failed" });
+  }
+});
+// End Google OAuth
+
 // Persist form submission
 apiRouter.post(
   "/hooks/form-submission",
@@ -219,35 +369,124 @@ apiRouter.post(
       answers["Your Time Zone"] :
       null;
 
-      // Extract photo from answers if available
-      const photo = answers && answers["Your Photo"] ?
-      answers["Your Photo"] :
-      null;
+      // Extract photo from answers if available, or fetch from Google profile
+      let photo = answers && answers["Your Photo"] ?
+        answers["Your Photo"] :
+        null;
+
+      // If no photo provided in form, try to fetch from Google profile
+      if (!photo) {
+        try {
+          photo = await fetchGoogleProfilePicture(userId);
+        } catch (photoError) {
+          console.error("Error fetching Google profile picture:", photoError);
+          // Continue without photo if fetch fails
+        }
+      }
 
       const now = new Date();
 
       // Create a copy of the template vocabulary spreadsheet for the new user
       let vocabularySheetId = null;
       try {
-        const auth = await google.auth.getClient({
-          scopes: [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-          ],
-        });
+        // Prefer OAuth (acts as MsRaasch27) when available; fallback to service account
+        let drive = null as ReturnType<typeof google.drive> | null;
+        let sheets = null as ReturnType<typeof google.sheets> | null;
+        let authClient: any = null;
 
-        const drive = google.drive({ version: "v3", auth });
-        const sheets = google.sheets({ version: "v4", auth });
+        // Try to get valid OAuth client with token refresh
+        const oauth2Client = await getValidOAuth2Client();
+        if (oauth2Client) {
+          authClient = oauth2Client;
+          drive = google.drive({ version: "v3", auth: oauth2Client });
+          sheets = google.sheets({ version: "v4", auth: oauth2Client });
+        }
+
+        if (!drive || !sheets) {
+          authClient = await google.auth.getClient({
+            scopes: [
+              "https://www.googleapis.com/auth/spreadsheets",
+              "https://www.googleapis.com/auth/drive",
+              "https://www.googleapis.com/auth/cloud-translation",
+              "https://www.googleapis.com/auth/userinfo.profile",
+              "https://www.googleapis.com/auth/userinfo.email",
+            ],
+          });
+          drive = google.drive({ version: "v3", auth: authClient });
+          sheets = google.sheets({ version: "v4", auth: authClient });
+        }
 
         // Template spreadsheet ID from environment variable
-        const templateSheetId = S_TEMPLATE_SHEET_ID.value();
+        let templateSheetId = S_TEMPLATE_SHEET_ID.value();
 
-        // Create a copy of the template
+        // First, check if we can access the template
+        try {
+          await drive.files.get({ fileId: templateSheetId });
+        } catch (templateError) {
+          console.error(`Cannot access template spreadsheet ${templateSheetId}:`, templateError);
+
+          // If template is not accessible, create a new one
+          console.log("Creating new template spreadsheet...");
+          const newTemplate = await sheets.spreadsheets.create({
+            requestBody: {
+              properties: {
+                title: "Vocabulary Template - English to Native Language",
+              },
+              sheets: [
+                {
+                  properties: {
+                    title: "Vocabulary",
+                    gridProperties: {
+                      rowCount: 100,
+                      columnCount: 4,
+                    },
+                  },
+                },
+              ],
+            },
+          });
+
+          if (newTemplate.data.spreadsheetId) {
+            templateSheetId = newTemplate.data.spreadsheetId;
+
+            // Add sample data to the template
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: templateSheetId,
+              range: "A1:D1",
+              valueInputOption: "RAW",
+              requestBody: {
+                values: [["English", "Native Language", "Part of Speech", "Example"]],
+              },
+            });
+
+            // Add some sample vocabulary words
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: templateSheetId,
+              range: "A2:D6",
+              valueInputOption: "RAW",
+              requestBody: {
+                values: [
+                  ["Hello", "", "interjection", "Hello, how are you?"],
+                  ["Goodbye", "", "interjection", "Goodbye, see you later!"],
+                  ["Thank you", "", "phrase", "Thank you for your help."],
+                  ["Please", "", "adverb", "Please come in."],
+                  ["Sorry", "", "adjective", "I'm sorry for the mistake."],
+                ],
+              },
+            });
+
+            console.log(`Created new template spreadsheet: ${templateSheetId}`);
+          } else {
+            throw new Error("Failed to create new template spreadsheet");
+          }
+        }
+
+        // Create a copy of the template in the teacher's account (MsRaasch27@gmail.com)
         const copyResponse = await drive.files.copy({
           fileId: templateSheetId,
           requestBody: {
             name: `${name || userId}'s Vocabulary Sheet`,
-            // Create in the service account's own drive instead of the teacher's
+            // The copy will be created in the same account as the template (MsRaasch27@gmail.com)
           },
         });
 
@@ -315,9 +554,10 @@ apiRouter.post(
                 };
 
                 const targetLanguage = languageCodeMap[natLang] || "es"; // Default to Spanish if not found
+                console.log(`Using target language code: ${targetLanguage} for native language: ${natLang}`);
 
                 // Use Google Translate API through googleapis
-                const translate = google.translate({ version: "v2", auth });
+                const translate = google.translate({ version: "v2", auth: authClient });
 
                 // Translate each English word/phrase
                 const translations: string[][] = [];
@@ -325,6 +565,8 @@ apiRouter.post(
                   const englishWord = englishWords[i][0];
                   if (englishWord && englishWord.trim()) {
                     try {
+                      console.log(`Attempting to translate "${englishWord}" to ${targetLanguage}...`);
+
                       const translationResponse = await translate.translations.translate({
                         requestBody: {
                           q: [englishWord],
@@ -333,11 +575,14 @@ apiRouter.post(
                         },
                       });
 
-                      const translation = translationResponse.data.translations?.[0]?.translatedText || "";
+                      console.log(`Translation response for "${englishWord}":`, JSON.stringify(translationResponse.data, null, 2));
+
+                      const translation = (translationResponse.data as any).data?.translations?.[0]?.translatedText || "";
                       translations.push([translation]);
                       console.log(`Translated "${englishWord}" to "${translation}" for user ${userId}`);
                     } catch (translationError) {
                       console.error(`Error translating "${englishWord}":`, translationError);
+                      console.error("Translation error details:", JSON.stringify(translationError, null, 2));
                       translations.push([""]); // Empty string if translation fails
                     }
                   } else {
@@ -554,11 +799,29 @@ apiRouter.get(
         return res.status(500).json({ error: "No vocabulary sheet configured. Please set up a default sheet or configure a personal vocabulary sheet." });
       }
 
-      // Auth as the function's service account
-      const auth = await google.auth.getClient({
-        scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-      });
-      const sheets = google.sheets({ version: "v4", auth });
+      // Prefer OAuth (acts as MsRaasch27) when available; fallback to service account
+      let sheets = null as ReturnType<typeof google.sheets> | null;
+      let authClient = null as any;
+
+      // Try to get valid OAuth client with token refresh
+      const oauth2Client = await getValidOAuth2Client();
+      if (oauth2Client) {
+        authClient = oauth2Client;
+        sheets = google.sheets({ version: "v4", auth: oauth2Client });
+      }
+
+      if (!sheets) {
+        authClient = await google.auth.getClient({
+          scopes: [
+            "https://www.googleapis.com/auth/spreadsheets.readonly",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/cloud-translation",
+            "https://www.googleapis.com/auth/userinfo.profile",
+            "https://www.googleapis.com/auth/userinfo.email",
+          ],
+        });
+        sheets = google.sheets({ version: "v4", auth: authClient });
+      }
 
       // Fetch data from the sheet (assuming columns: English | Thai | Part of Speech | Example)
       const response = await sheets.spreadsheets.values.get({
@@ -904,6 +1167,55 @@ apiRouter.get("/test", (_req: Request, res: Response) => {
   return res.json({ message: "API router is working" });
 });
 
+// Test Google Translate API
+apiRouter.get("/test-translate", async (_req: Request, res: Response) => {
+  try {
+    console.log("Testing Google Translate API...");
+
+    // Try to get valid OAuth client
+    const oauth2Client = await getValidOAuth2Client();
+    let authClient: any = null;
+
+    if (oauth2Client) {
+      authClient = oauth2Client;
+      console.log("Using OAuth client for translation test");
+    } else {
+      authClient = await google.auth.getClient({
+        scopes: [
+          "https://www.googleapis.com/auth/cloud-translation",
+        ],
+      });
+      console.log("Using service account for translation test");
+    }
+
+    const translate = google.translate({ version: "v2", auth: authClient });
+
+    console.log("Making test translation request...");
+    const translationResponse = await translate.translations.translate({
+      requestBody: {
+        q: ["Hello"],
+        target: "th",
+        source: "en",
+      },
+    });
+
+    console.log("Translation test response:", JSON.stringify(translationResponse.data, null, 2));
+
+    return res.json({
+      success: true,
+      translation: (translationResponse.data as any).data?.translations?.[0]?.translatedText || "No translation",
+      fullResponse: translationResponse.data,
+    });
+  } catch (error) {
+    console.error("Translation test error:", error);
+    return res.status(500).json({
+      success: false,
+      error: String(error),
+      details: JSON.stringify(error, null, 2),
+    });
+  }
+});
+
 // Reset calendar sync token
 apiRouter.post("/reset-calendar-sync", async (_req: Request, res: Response) => {
   try {
@@ -1240,6 +1552,9 @@ export const api = onRequest(
       S_CALENDAR_ID,
       S_VOCAB_SHEET_ID,
       S_TEMPLATE_SHEET_ID,
+      S_OAUTH_CLIENT_ID,
+      S_OAUTH_CLIENT_SECRET,
+      S_OAUTH_REDIRECT_URI,
       defineSecret("STRIPE_SECRET_KEY"),
       defineSecret("STRIPE_PRICE_ID"),
     ],

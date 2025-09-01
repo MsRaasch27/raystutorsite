@@ -1,3 +1,5 @@
+import FreeTrialButton from "@/components/FreeTrialButton";
+
 export default async function HomePage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -28,14 +30,7 @@ export default async function HomePage() {
               Personalized gamified English language learning designed to help you crush your language goals fast
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-              <a
-                href="https://forms.gle/kMfysT3gYQ1PsqLQ8"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-block text-center"
-              >
-                Book a Free Trial Session
-              </a>
+              <FreeTrialButton ctaText="Book a Free Trial Session" />
               <a
                 href="https://forms.gle/kMfysT3gYQ1PsqLQ8"
                 target="_blank"
@@ -118,14 +113,7 @@ export default async function HomePage() {
             <a href="mailto:msraasch27@gmail.com" className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
               Email Me
             </a>
-            <a
-              href="https://forms.gle/kMfysT3gYQ1PsqLQ8"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
-            >
-              Claim Free Trial
-            </a>
+            <FreeTrialButton ctaText="Claim Free Trial" variant="secondary" />
           </div>
         </div>
       </section>
