@@ -1,72 +1,79 @@
-import { notFound } from "next/navigation";
 import { StudentPageClient } from "./StudentPageClient";
 
-function getBaseUrl() {
-  // Firebase Hosting frameworks sets VERCEL_URL to your site host (no scheme).
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  // Local dev fallback:
-  return "http://localhost:3000";
+// Helper function to fetch data from API
+async function fetchUserData(userId: string) {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api-bzn2v7ik2a-uc.a.run.app'}/api/users/${encodeURIComponent(userId)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user data: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    return null;
+  }
 }
 
-type User = {
-  id: string;
-  name?: string | null;
-  email: string;
-  goals?: string | null;
-};
+async function fetchAppointments(userId: string, type: 'upcoming' | 'past') {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api-bzn2v7ik2a-uc.a.run.app'}/api/users/${encodeURIComponent(userId)}/appointments?kind=${type}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${type} appointments: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching ${type} appointments:`, error);
+    return { items: [] };
+  }
+}
 
-type Assessment = {
-  id: string;
-  userId: string;
-  email: string;
-  submittedAt: string;
-  answers: Record<string, string | number | boolean>;
-  createdAt: FirebaseFirestore.Timestamp;
-};
+async function fetchAssessments(userId: string) {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api-bzn2v7ik2a-uc.a.run.app'}/api/users/${encodeURIComponent(userId)}/assessments`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch assessments: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching assessments:', error);
+    return { assessments: [] };
+  }
+}
 
-type Appt = {
-  id: string;
-  title?: string;
-  start?: { _seconds: number; _nanoseconds: number } | string;
-  end?: { _seconds: number; _nanoseconds: number } | string;
-  status?: string;
-  startTime?: string;
-  endTime?: string;
-  location?: string;
-  meetLink?: string;
-};
-
-// Server component to fetch data
+// Server component with real data fetching
 export default async function StudentPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const id = decodeURIComponent(slug).trim().toLowerCase();
-  const base = getBaseUrl();
   
-  const [userRes, upcomingRes, pastRes] = await Promise.all([
-    fetch(`${base}/api/users/${encodeURIComponent(id)}`, { cache: "no-store" }),
-    fetch(`${base}/api/users/${encodeURIComponent(id)}/appointments?kind=upcoming`, { cache: "no-store" }),
-    fetch(`${base}/api/users/${encodeURIComponent(id)}/appointments?kind=past`, { cache: "no-store" }),
+  // Decode the slug (it's the user's email)
+  const userId = decodeURIComponent(slug);
+  
+  // Fetch real data from the API
+  const [userData, upcomingData, pastData, assessmentsData] = await Promise.allSettled([
+    fetchUserData(userId),
+    fetchAppointments(userId, 'upcoming'),
+    fetchAppointments(userId, 'past'),
+    fetchAssessments(userId)
   ]);
-
-  if (userRes.status === 404) notFound();
-  if (!userRes.ok) throw new Error(`Failed to load user: ${userRes.status}`);
-
-  const user = (await userRes.json()) as User;
-  const upcoming: { items: Appt[] } = await upcomingRes.json();
-  const past: { items: Appt[] } = await pastRes.json();
-
-  // Fetch user's assessments
-  const assessmentsRes = await fetch(`${getBaseUrl()}/api/users/${encodeURIComponent(id)}/assessments`, {
-    cache: "no-store",
-  });
   
-  let assessments: Assessment[] = [];
-  if (assessmentsRes.ok) {
-    const assessmentsData = await assessmentsRes.json();
-    assessments = assessmentsData.assessments || [];
+  // Handle successful data fetching
+  const user = userData.status === 'fulfilled' ? userData.value : null;
+  const upcoming = upcomingData.status === 'fulfilled' ? upcomingData.value : { items: [] };
+  const past = pastData.status === 'fulfilled' ? pastData.value : { items: [] };
+  const assessments = assessmentsData.status === 'fulfilled' ? assessmentsData.value.assessments : [];
+  
+  // If user not found, show error or redirect
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white rounded-lg p-8 shadow-lg text-center">
+          <div className="text-4xl mb-4">❌</div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">User Not Found</h1>
+          <p className="text-gray-600">The user profile you&apos;re looking for doesn&apos;t exist.</p>
+        </div>
+      </div>
+    );
   }
-
+  
   return (
     <StudentPageClient 
       user={user}

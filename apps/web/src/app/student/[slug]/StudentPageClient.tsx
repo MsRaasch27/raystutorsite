@@ -2,8 +2,8 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { FlashcardDeck } from "../../../components/FlashcardDeck";
-import { VocabularySettings } from "../../../components/VocabularySettings";
 import { PricingModal, PricingOption } from "../../../components/PricingModal";
+import { CEFRLevels } from "../../../components/CEFRLevels";
 
 type SessionInfo = {
   sessionsThisMonth: number;
@@ -27,6 +27,14 @@ type User = {
   goals?: string | null;
   billing?: { active?: boolean } | null;
   vocabularySheetId?: string | null;
+  photo?: string | null;
+  cefrLevels?: {
+    understanding?: string;
+    speaking?: string;
+    reading?: string;
+    writing?: string;
+  } | null;
+  lastAssessmentDate?: string | null;
 };
 
 type Assessment = {
@@ -35,6 +43,12 @@ type Assessment = {
   email: string;
   submittedAt: string;
   answers: Record<string, string | number | boolean>;
+  cefrLevels?: {
+    understanding?: string;
+    speaking?: string;
+    reading?: string;
+    writing?: string;
+  } | null;
   createdAt: FirebaseFirestore.Timestamp;
 };
 
@@ -92,7 +106,6 @@ export function StudentPageClient({
 }) {
   const [activeTab, setActiveTab] = useState<TabType>('practice');
   const [checkingOut, setCheckingOut] = useState(false);
-  const [currentVocabularySheetId, setCurrentVocabularySheetId] = useState(user.vocabularySheetId);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [preSelectPlan, setPreSelectPlan] = useState<string | undefined>(undefined);
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
@@ -255,6 +268,11 @@ export function StudentPageClient({
       case 'practice':
         return (
           <div>            
+            {/* CEFR Levels */}
+            <div className="mb-8">
+              <CEFRLevels userId={user.id} />
+            </div>
+
             {/* Hero's Journey Progress */}
             <div className="mb-8">
               <h3 className="text-xl font-bold text-gray-800 mb-4">🏆 My Progress</h3>
@@ -286,19 +304,24 @@ export function StudentPageClient({
               </div>
             </div>
 
-            {/* Vocabulary Settings */}
-            <div className="mb-8">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">⚙️ Vocabulary Settings</h3>
-              <VocabularySettings 
-                userId={user.id}
-                currentSheetId={currentVocabularySheetId}
-                onSheetIdUpdate={setCurrentVocabularySheetId}
-              />
-            </div>
-
             {/* Interactive Flashcard Deck */}
             <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">🃏 My Flashcard Deck</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-800">🃏 My Flashcard Deck</h3>
+                {user.vocabularySheetId && (
+                  <a
+                    href={`https://docs.google.com/spreadsheets/d/${user.vocabularySheetId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    📊 View Vocabulary Sheet
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                )}
+              </div>
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-6 border-2 border-purple-200">
                 <FlashcardDeck userId={user.id} />
               </div>
@@ -309,7 +332,7 @@ export function StudentPageClient({
       default:
         return null;
     }
-  }, [activeTab, past.items, upcoming.items, renderAppointment, user.id, currentVocabularySheetId]);
+  }, [activeTab, past.items, upcoming.items, renderAppointment, user.id]);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -318,8 +341,21 @@ export function StudentPageClient({
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="flex flex-col md:flex-row items-center gap-6">
             {/* Profile Image */}
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white bg-opacity-20 flex items-center justify-center border-4 border-white border-opacity-30">
-              <div className="text-center">
+            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white bg-opacity-20 flex items-center justify-center border-4 border-white border-opacity-30 overflow-hidden">
+              {user.photo ? (
+                <img 
+                  src={user.photo} 
+                  alt="Profile photo" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback to default avatar if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    target.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+              ) : null}
+              <div className={`text-center ${user.photo ? 'hidden' : ''}`}>
                 <div className="text-3xl md:text-4xl mb-1">👤</div>
                 <p className="text-xs font-semibold">Photo</p>
               </div>

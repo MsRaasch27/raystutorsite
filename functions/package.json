@@ -16,6 +16,7 @@
   "main": "lib/index.js",
   "dependencies": {
     "@google-cloud/text-to-speech": "^6.0.0",
+    "@google-cloud/translate": "^9.2.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "firebase-admin": "^12.6.0",

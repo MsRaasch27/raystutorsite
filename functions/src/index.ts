@@ -16,9 +16,11 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import { TextToSpeechClient } from "@google-cloud/text-to-speech";
 
+
 setGlobalOptions({ maxInstances: 10 });
 const S_CALENDAR_ID = defineSecret("GOOGLE_CALENDAR_ID");
 const S_VOCAB_SHEET_ID = defineSecret("GOOGLE_VOCAB_SHEET_ID");
+const S_TEMPLATE_SHEET_ID = defineSecret("GOOGLE_TEMPLATE_SHEET_ID");
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -39,6 +41,130 @@ app.use(
   })
 );
 app.use(express.json());
+
+/**
+ * Mapping of assessment answer options to CEFR levels
+ * This maps the actual answer text that students see to the corresponding CEFR level
+ */
+const ANSWER_TO_CEFR_MAPPING: Record<string, string> = {
+  // Understanding/Listening options
+  "I can understand very basic words and instructions": "A1",
+  "I can understand short, clear messages about everyday things": "A2",
+  "I can understand the main points in conversations about familiar topics": "B1",
+  "I can understand detailed information on many topics, including work or school": "B2",
+  "I can understand long and complex spoken English, even when not clearly structured": "C1",
+  "I can easily understand any spoken English, including idioms and accents": "C2",
+
+  // Speaking options
+  "I can say simple words and phrases": "A1",
+  "I can ask and answer basic questions on familiar topics": "A2",
+  "I can join in conversations on everyday topics and describe experiences": "B1",
+  "I can speak clearly and in detail on a wide range of subjects": "B2",
+  "I can use language flexibly and effectively for social, academic, or professional purposes": "C1",
+  "I can express myself fluently, even in complex situations": "C2",
+
+  // Reading options
+  "I can read familiar names, words, and simple sentences": "A1",
+  "I can read short texts like ads, menus, and emails": "A2",
+  "I can understand the main ideas in everyday texts or short stories": "B1",
+  "I can read and understand articles, reports, or essays": "B2",
+  "I can understand long, complex texts including opinions and arguments": "C1",
+  "I can read and critically analyze any written text, even literary or technical": "C2",
+
+  // Writing options
+  "I can write simple sentences about myself or everyday topics": "A1",
+  "I can write short messages, notes, or descriptions": "A2",
+  "I can write simple connected texts like emails, stories, or explanations": "B1",
+  "I can write clear, detailed texts on many subjects": "B2",
+  "I can write well-structured essays or reports for work or school": "C1",
+  "I can write in a very natural and accurate way, even on complex topics": "C2",
+};
+
+/**
+ * Helper function to extract CEFR level from answer text using mapping
+ * @param {string} answer - The answer text to extract CEFR level from
+ * @return {string | null} The extracted CEFR level or null if not found
+ */
+function extractCEFRLevel(answer: string): string | null {
+  if (!answer) return null;
+
+  // First try exact match with the mapping
+  const exactMatch = ANSWER_TO_CEFR_MAPPING[answer.trim()];
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  // Fallback: try to find CEFR level patterns in the text (for backward compatibility)
+  const cefrPatterns = [
+    /A1\b/i,
+    /A2\b/i,
+    /B1\b/i,
+    /B2\b/i,
+    /C1\b/i,
+    /C2\b/i,
+  ];
+
+  for (const pattern of cefrPatterns) {
+    const match = answer.match(pattern);
+    if (match) {
+      return match[0].toUpperCase();
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Helper function to map assessment questions to CEFR categories
+ * @param {string} question - The question text to map to a category
+ * @return {string | null} The mapped category or null if not found
+ */
+function mapQuestionToCategory(question: string): string | null {
+  const questionLower = question.toLowerCase();
+
+  if (questionLower.includes("understand") || questionLower.includes("listening")) {
+    return "understanding";
+  } else if (questionLower.includes("speak") || questionLower.includes("conversation")) {
+    return "speaking";
+  } else if (questionLower.includes("read") || questionLower.includes("text")) {
+    return "reading";
+  } else if (questionLower.includes("write") || questionLower.includes("composition")) {
+    return "writing";
+  }
+
+  return null;
+}
+
+/**
+ * Helper function to process assessment answers and extract CEFR levels
+ * @param {Record<string, string | number | boolean>} answers - The assessment answers
+ * @return {Object} Object containing CEFR levels for each category
+ */
+function processAssessmentAnswers(answers: Record<string, string | number | boolean>): {
+  understanding?: string;
+  speaking?: string;
+  reading?: string;
+  writing?: string;
+} {
+  const cefrLevels: {
+    understanding?: string;
+    speaking?: string;
+    reading?: string;
+    writing?: string;
+  } = {};
+
+  for (const [question, answer] of Object.entries(answers)) {
+    const category = mapQuestionToCategory(question);
+    if (category && typeof answer === "string") {
+      const level = extractCEFRLevel(answer);
+      if (level) {
+        cefrLevels[category as keyof typeof cefrLevels] = level;
+      }
+    }
+  }
+
+  return cefrLevels;
+}
 
 // ----- shared router -----
 // eslint-disable-next-line new-cap
@@ -68,6 +194,11 @@ apiRouter.post(
         answers["Your Age"] :
         null;
 
+      // Extract native language from answers if available
+      const natLang = answers && answers["Your Native Language"] ?
+      answers["Your Native Language"] :
+      null;
+
       // Extract goals from answers if available
       const goals = answers && answers["Your Language Goals"] ?
         answers["Your Language Goals"] :
@@ -94,24 +225,189 @@ apiRouter.post(
       null;
 
       const now = new Date();
+
+      // Create a copy of the template vocabulary spreadsheet for the new user
+      let vocabularySheetId = null;
+      try {
+        const auth = await google.auth.getClient({
+          scopes: [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+          ],
+        });
+
+        const drive = google.drive({ version: "v3", auth });
+        const sheets = google.sheets({ version: "v4", auth });
+
+        // Template spreadsheet ID from environment variable
+        const templateSheetId = S_TEMPLATE_SHEET_ID.value();
+
+        // Create a copy of the template
+        const copyResponse = await drive.files.copy({
+          fileId: templateSheetId,
+          requestBody: {
+            name: `${name || userId}'s Vocabulary Sheet`,
+            // Create in the service account's own drive instead of the teacher's
+          },
+        });
+
+        if (copyResponse.data.id) {
+          vocabularySheetId = copyResponse.data.id;
+
+          // Update the "Native Language" column header to the user's actual native language
+          if (natLang) {
+            try {
+              await sheets.spreadsheets.values.update({
+                spreadsheetId: vocabularySheetId,
+                range: "B1", // Assuming "Native Language" is in cell B1
+                valueInputOption: "RAW",
+                requestBody: {
+                  values: [[natLang]],
+                },
+              });
+              console.log(`Updated native language header to "${natLang}" for user ${userId}`);
+
+              // Get the English words from column A and translate them to the user's native language
+              const englishWordsResponse = await sheets.spreadsheets.values.get({
+                spreadsheetId: vocabularySheetId,
+                range: "A:A", // Get all values from column A
+              });
+
+              const englishWords = englishWordsResponse.data.values || [];
+              if (englishWords.length > 1) { // Skip header row
+                // Map language names to language codes
+                const languageCodeMap: Record<string, string> = {
+                  "Spanish": "es",
+                  "French": "fr",
+                  "German": "de",
+                  "Italian": "it",
+                  "Portuguese": "pt",
+                  "Russian": "ru",
+                  "Japanese": "ja",
+                  "Korean": "ko",
+                  "Chinese": "zh",
+                  "Arabic": "ar",
+                  "Hindi": "hi",
+                  "Thai": "th",
+                  "Vietnamese": "vi",
+                  "Indonesian": "id",
+                  "Dutch": "nl",
+                  "Swedish": "sv",
+                  "Norwegian": "no",
+                  "Danish": "da",
+                  "Finnish": "fi",
+                  "Polish": "pl",
+                  "Czech": "cs",
+                  "Hungarian": "hu",
+                  "Turkish": "tr",
+                  "Greek": "el",
+                  "Hebrew": "he",
+                  "Persian": "fa",
+                  "Urdu": "ur",
+                  "Bengali": "bn",
+                  "Tamil": "ta",
+                  "Telugu": "te",
+                  "Marathi": "mr",
+                  "Gujarati": "gu",
+                  "Kannada": "kn",
+                  "Malayalam": "ml",
+                  "Punjabi": "pa",
+                };
+
+                const targetLanguage = languageCodeMap[natLang] || "es"; // Default to Spanish if not found
+
+                // Use Google Translate API through googleapis
+                const translate = google.translate({ version: "v2", auth });
+
+                // Translate each English word/phrase
+                const translations: string[][] = [];
+                for (let i = 1; i < englishWords.length; i++) { // Start from index 1 to skip header
+                  const englishWord = englishWords[i][0];
+                  if (englishWord && englishWord.trim()) {
+                    try {
+                      const translationResponse = await translate.translations.translate({
+                        requestBody: {
+                          q: [englishWord],
+                          target: targetLanguage,
+                          source: "en",
+                        },
+                      });
+
+                      const translation = translationResponse.data.translations?.[0]?.translatedText || "";
+                      translations.push([translation]);
+                      console.log(`Translated "${englishWord}" to "${translation}" for user ${userId}`);
+                    } catch (translationError) {
+                      console.error(`Error translating "${englishWord}":`, translationError);
+                      translations.push([""]); // Empty string if translation fails
+                    }
+                  } else {
+                    translations.push([""]); // Empty string for empty cells
+                  }
+                }
+
+                // Update column B with translations
+                if (translations.length > 0) {
+                  await sheets.spreadsheets.values.update({
+                    spreadsheetId: vocabularySheetId,
+                    range: `B2:B${translations.length + 1}`, // Start from B2 to skip header
+                    valueInputOption: "RAW",
+                    requestBody: {
+                      values: translations,
+                    },
+                  });
+                  console.log(`Added ${translations.length} translations to vocabulary sheet for user ${userId}`);
+                }
+              }
+            } catch (updateError) {
+              console.error("Error updating native language header:", updateError);
+              // Don't fail the whole process if header update fails
+            }
+          }
+
+          // Share the copied spreadsheet with the user
+          await drive.permissions.create({
+            fileId: vocabularySheetId,
+            requestBody: {
+              role: "writer",
+              type: "user",
+              emailAddress: userId,
+            },
+          });
+
+          console.log(`Created vocabulary sheet ${vocabularySheetId} for user ${userId}`);
+        }
+      } catch (error) {
+        console.error("Error creating vocabulary sheet:", error);
+
+        // Log more detailed error information
+        if (error && typeof error === "object" && "code" in error) {
+          console.error("Error code:", error.code);
+          console.error("Error details:", error);
+        }
+
+        // Don't fail the user creation if sheet creation fails
+      }
+
       await db.collection("users").doc(userId).set(
         {
           name: name || null,
           email: userId,
           sheetName: sheetName || null,
           age: age,
+          natLang: natLang,
           goals: goals,
           frequency: frequency,
           preferredtime: preferredtime,
           timezone: timezone,
           photo: photo,
+          vocabularySheetId: vocabularySheetId,
           updatedAt: now,
           createdAt: now,
         },
         { merge: true }
       );
 
-      return res.status(200).json({ ok: true, userId });
+      return res.status(200).json({ ok: true, userId, vocabularySheetId });
     } catch (err: unknown) {
       console.error("form-submission error", err);
       return res.status(500).json({ error: "internal" });
@@ -132,15 +428,26 @@ apiRouter.post(
       const now = new Date();
       const assessmentId = `${userId}_${now.getTime()}`;
 
+      // Process CEFR levels from answers
+      const cefrLevels = processAssessmentAnswers(answers || {});
+
       await db.collection("assessments").doc(assessmentId).set({
         userId: userId,
         email: userId,
         submittedAt: submittedAt || now.toISOString(),
         answers: answers || {},
+        cefrLevels: cefrLevels,
         createdAt: now,
       });
 
-      return res.status(200).json({ ok: true, assessmentId, userId });
+      // Update user document with CEFR levels
+      await db.collection("users").doc(userId).set({
+        cefrLevels: cefrLevels,
+        lastAssessmentDate: now,
+        updatedAt: now,
+      }, { merge: true });
+
+      return res.status(200).json({ ok: true, assessmentId, userId, cefrLevels });
     } catch (err: unknown) {
       console.error("assessment-submission error", err);
       return res.status(500).json({ error: "internal" });
@@ -181,6 +488,33 @@ apiRouter.get(
       return res.json({ assessments });
     } catch (err: unknown) {
       console.error("get assessments error", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Get user's CEFR levels
+apiRouter.get(
+  "/users/:id/cefr-levels",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const userSnap = await db.collection("users").doc(id).get();
+
+      if (!userSnap.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userData = userSnap.data();
+      const cefrLevels = userData?.cefrLevels || {};
+      const lastAssessmentDate = userData?.lastAssessmentDate;
+
+      return res.json({
+        cefrLevels,
+        lastAssessmentDate,
+        hasAssessment: !!lastAssessmentDate,
+      });
+    } catch (err: unknown) {
+      console.error("get CEFR levels error", err);
       return res.status(500).json({ error: "internal" });
     }
   });
@@ -725,6 +1059,171 @@ apiRouter.get(
     }
   });
 
+// Get user's CEFR levels
+apiRouter.get(
+  "/users/:id/cefr-levels",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const userSnap = await db.collection("users").doc(id).get();
+
+      if (!userSnap.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userData = userSnap.data();
+      const cefrLevels = userData?.cefrLevels || {};
+      const lastAssessmentDate = userData?.lastAssessmentDate;
+
+      return res.json({
+        cefrLevels,
+        lastAssessmentDate,
+        hasAssessment: !!lastAssessmentDate,
+      });
+    } catch (err: unknown) {
+      console.error("get CEFR levels error", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Get all students for teacher dashboard
+apiRouter.get(
+  "/teacher/students",
+  async (req: Request, res: Response) => {
+    try {
+      const studentsSnap = await db.collection("users")
+        .orderBy("createdAt", "desc")
+        .get();
+
+      const students = await Promise.all(
+        studentsSnap.docs.map(async (doc) => {
+          const userData = doc.data();
+          const userId = doc.id;
+
+          // Get recent lessons (last 5)
+          const recentLessonsSnap = await db.collection("users")
+            .doc(userId)
+            .collection("appointments")
+            .where("endTimestamp", "<", admin.firestore.Timestamp.now())
+            .orderBy("endTimestamp", "desc")
+            .limit(5)
+            .get();
+
+          const recentLessons = recentLessonsSnap.docs.map((lessonDoc) => ({
+            id: lessonDoc.id,
+            ...lessonDoc.data(),
+          }));
+
+          // Get upcoming lessons (next 5)
+          const upcomingLessonsSnap = await db.collection("users")
+            .doc(userId)
+            .collection("appointments")
+            .where("startTimestamp", ">=", admin.firestore.Timestamp.now())
+            .orderBy("startTimestamp", "asc")
+            .limit(5)
+            .get();
+
+          const upcomingLessons = upcomingLessonsSnap.docs.map((lessonDoc) => ({
+            id: lessonDoc.id,
+            ...lessonDoc.data(),
+          }));
+
+          return {
+            id: userId,
+            ...userData,
+            recentLessons,
+            upcomingLessons,
+          };
+        })
+      );
+
+      return res.json({ students });
+    } catch (err: unknown) {
+      console.error("get students error", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Get detailed lesson information
+apiRouter.get(
+  "/teacher/lessons/:lessonId",
+  async (req: Request, res: Response) => {
+    try {
+      const lessonId = req.params.lessonId;
+      console.log("Looking for lesson details with ID:", lessonId);
+
+      // Get lesson details directly from the lessonDetails collection
+      const lessonDetailsSnap = await db.collection("lessonDetails")
+        .doc(lessonId)
+        .get();
+
+      if (!lessonDetailsSnap.exists) {
+        console.log("Lesson details not found, creating empty record");
+        // Create an empty lesson details record
+        const emptyDetails = {
+          topic: null,
+          vocabulary: [],
+          homework: null,
+          learningActivity: null,
+          resources: [],
+          teacherNotes: null,
+          calendarEventId: lessonId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+                 };
+
+                  await db.collection("lessonDetails").doc(lessonId).set(emptyDetails);
+
+         return res.json({
+          lesson: {
+            id: lessonId,
+          },
+          details: emptyDetails,
+        });
+      }
+
+      const lessonDetails = lessonDetailsSnap.data();
+      console.log("Found lesson details:", lessonDetails);
+
+      return res.json({
+        lesson: {
+          id: lessonId,
+        },
+        details: lessonDetails,
+      });
+    } catch (err: unknown) {
+      console.error("get lesson details error", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Update lesson details
+apiRouter.post(
+  "/teacher/lessons/:lessonId/details",
+  async (req: Request, res: Response) => {
+    try {
+      const lessonId = req.params.lessonId;
+      const { topic, vocabulary, homework, learningActivity, resources, teacherNotes } = req.body || {};
+
+      const now = new Date();
+      await db.collection("lessonDetails").doc(lessonId).set({
+        topic: topic || null,
+        vocabulary: vocabulary || [],
+        homework: homework || null,
+        learningActivity: learningActivity || null,
+        resources: resources || [],
+        teacherNotes: teacherNotes || null,
+        updatedAt: now,
+        createdAt: now,
+      }, { merge: true });
+
+      return res.json({ ok: true });
+    } catch (err: unknown) {
+      console.error("update lesson details error", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
 // Mount only at '/api'
 app.use("/api", apiRouter);
 
@@ -740,6 +1239,7 @@ export const api = onRequest(
     secrets: [
       S_CALENDAR_ID,
       S_VOCAB_SHEET_ID,
+      S_TEMPLATE_SHEET_ID,
       defineSecret("STRIPE_SECRET_KEY"),
       defineSecret("STRIPE_PRICE_ID"),
     ],
@@ -1042,6 +1542,24 @@ export const syncCalendar = onSchedule(
             updatedAt: new Date(),
             createdAt: new Date(),
           });
+
+          // Create lesson details record if it doesn't exist
+          const lessonDetailsRef = db.collection("lessonDetails").doc(eventId);
+          const lessonDetailsSnap = await lessonDetailsRef.get();
+          if (!lessonDetailsSnap.exists) {
+            stage(() => batch.set(lessonDetailsRef, {
+              topic: null,
+              vocabulary: [],
+              homework: null,
+              learningActivity: null,
+              resources: [],
+              teacherNotes: null,
+              studentId: candidateId,
+              calendarEventId: eventId,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }));
+          }
 
           // Maintain a minimal index (only for matched events) so we can
           // remove on cancel
