@@ -2,50 +2,46 @@ import FreeTrialButton from "@/components/FreeTrialButton";
 
 export default async function HomePage() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Hero Section */}
-      <section className="relative min-h-[500px] md:h-96 flex items-center justify-center overflow-hidden py-8">
-        {/* Background Image */}
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-700">
-          <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-        </div>
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
 
-        {/* Hero Content */}
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-center text-white px-6 gap-8">
-          {/* Profile Image */}
-          <div className="w-28 h-28 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30">
-            <img
-              src="/TEFLclass.jpg"
-              alt="TEFL Class Teaching"
-              className="w-full h-full object-cover"
-            />
-          </div>
+<section className="max-w-6xl mx-auto px-4 py-16 rounded-2xl" style={{ backgroundColor: '#000000' }}>
 
-          {/* Text Content */}
-          <div className="text-center md:text-left">
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4">
-              Level Up Your Language Skills
-            </h1>
-            <p className="text-lg md:text-xl lg:text-2xl mb-6 max-w-2xl">
-              Personalized gamified English language learning designed to help you crush your language goals fast
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-              <FreeTrialButton ctaText="Book a Free Trial Session" />
-              <a
-                href="https://forms.gle/kMfysT3gYQ1PsqLQ8"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors inline-block text-center"
-              >
-                Learn More
-              </a>
+          {/* Content Container with Black Background */}
+          <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-6xl">
+            {/* Profile Image */}
+            <div className="w-28 h-28 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30 mx-auto md:mx-0 mb-6 md:mb-0">
+              <img
+                src="/TEFLclass.jpg"
+                alt="TEFL Class Teaching"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            {/* Text Content */}
+            <div className="text-center md:text-left">
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4">
+                Level Up Your Language Skills
+              </h1>
+              <p className="text-lg md:text-xl lg:text-2xl mb-6 max-w-2xl">
+                Personalized gamified English language learning designed to help you crush your language goals fast
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                <FreeTrialButton ctaText="Book a Free Trial Session" />
+                <a
+                  href="https://forms.gle/kMfysT3gYQ1PsqLQ8"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors inline-block text-center"
+                >
+                  Learn More
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+          </section>
 
       {/* Main Content */}
-      <section className="max-w-6xl mx-auto px-6 py-16">
+      <section className="max-w-6xl mx-auto px-6 py-16 rounded-2xl" style={{ backgroundColor: '#475037' }}>
         {/* About Section */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">

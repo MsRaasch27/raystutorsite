@@ -633,6 +633,72 @@ apiRouter.post(
         // Don't fail the user creation if sheet creation fails
       }
 
+      // Create a copy of the Master English Lessons Library spreadsheet for the new user (teacher use only)
+      let lessonsLibrarySheetId = null;
+      try {
+        // Prefer OAuth (acts as MsRaasch27) when available; fallback to service account
+        let drive = null as ReturnType<typeof google.drive> | null;
+        let authClient: any = null;
+
+        // Try to get valid OAuth client with token refresh
+        const oauth2Client = await getValidOAuth2Client();
+        if (oauth2Client) {
+          authClient = oauth2Client;
+          drive = google.drive({ version: "v3", auth: oauth2Client });
+        }
+
+        if (!drive) {
+          authClient = await google.auth.getClient({
+            scopes: [
+              "https://www.googleapis.com/auth/drive",
+              "https://www.googleapis.com/auth/spreadsheets",
+            ],
+          });
+          drive = google.drive({ version: "v3", auth: authClient });
+        }
+
+        // Master English Lessons Library spreadsheet ID from environment variable
+        const masterLessonsLibraryId = "1lPLZ-N09Iz2nj11sVnIicw0uThdAxmgPAA2oAAbihnc"; // Temporary hardcode for testing
+
+        if (masterLessonsLibraryId) {
+          // First, check if we can access the master lessons library
+          try {
+            await drive.files.get({ fileId: masterLessonsLibraryId });
+          } catch (masterError) {
+            console.error(`Cannot access Master English Lessons Library ${masterLessonsLibraryId}:`, masterError);
+            throw new Error("Master English Lessons Library not accessible");
+          }
+
+          // Create a copy of the master lessons library in the teacher's account (MsRaasch27@gmail.com)
+          const copyResponse = await drive.files.copy({
+            fileId: masterLessonsLibraryId,
+            requestBody: {
+              name: `${name || userId} Lesson Queue`,
+              // The copy will be created in the same account as the master (MsRaasch27@gmail.com)
+            },
+          });
+
+          if (copyResponse.data.id) {
+            lessonsLibrarySheetId = copyResponse.data.id;
+
+            // Note: Do NOT share with the student - this is purely for teacher use
+            console.log(`Created lessons library sheet ${lessonsLibrarySheetId} for user ${userId} (teacher use only)`);
+          }
+        } else {
+          console.log("MASTER_LESSONS_TEMPLATE_ID not set, skipping lessons library creation");
+        }
+      } catch (error) {
+        console.error("Error creating lessons library sheet:", error);
+
+        // Log more detailed error information
+        if (error && typeof error === "object" && "code" in error) {
+          console.error("Error code:", error.code);
+          console.error("Error details:", error);
+        }
+
+        // Don't fail the user creation if lessons library sheet creation fails
+      }
+
       await db.collection("users").doc(userId).set(
         {
           name: name || null,
@@ -646,13 +712,14 @@ apiRouter.post(
           timezone: timezone,
           photo: photo,
           vocabularySheetId: vocabularySheetId,
+          lessonsLibrarySheetId: lessonsLibrarySheetId, // For teacher reference only
           updatedAt: now,
           createdAt: now,
         },
         { merge: true }
       );
 
-      return res.status(200).json({ ok: true, userId, vocabularySheetId });
+      return res.status(200).json({ ok: true, userId, vocabularySheetId, lessonsLibrarySheetId });
     } catch (err: unknown) {
       console.error("form-submission error", err);
       return res.status(500).json({ error: "internal" });
@@ -1862,7 +1929,8 @@ export const syncCalendar = onSchedule(
           const lessonDetailsRef = db.collection("lessonDetails").doc(eventId);
           const lessonDetailsSnap = await lessonDetailsRef.get();
           if (!lessonDetailsSnap.exists) {
-            stage(() => batch.set(lessonDetailsRef, {
+            // Try to populate lesson details from student's lesson queue spreadsheet
+            let populatedDetails = {
               topic: null,
               vocabulary: [],
               homework: null,
@@ -1873,7 +1941,87 @@ export const syncCalendar = onSchedule(
               calendarEventId: eventId,
               createdAt: new Date(),
               updatedAt: new Date(),
-            }));
+            };
+
+            try {
+              // Get the student's lesson queue spreadsheet ID
+              const studentDoc = await db.collection("users").doc(candidateId).get();
+              if (studentDoc.exists) {
+                const studentData = studentDoc.data();
+                const lessonsLibrarySheetId = studentData?.lessonsLibrarySheetId;
+
+                if (lessonsLibrarySheetId) {
+                  console.log(`Attempting to populate lesson details from spreadsheet ${lessonsLibrarySheetId} for student ${candidateId}`);
+
+                  // Get Google Sheets API client
+                  let sheets = null as ReturnType<typeof google.sheets> | null;
+                  let authClient: any = null;
+
+                  // Try to get valid OAuth client with token refresh
+                  const oauth2Client = await getValidOAuth2Client();
+                  if (oauth2Client) {
+                    authClient = oauth2Client;
+                    sheets = google.sheets({ version: "v4", auth: oauth2Client });
+                  }
+
+                  if (!sheets) {
+                    authClient = await google.auth.getClient({
+                      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+                    });
+                    sheets = google.sheets({ version: "v4", auth: authClient });
+                  }
+
+                  // Read the first non-highlighted row from the lesson queue
+                  const response = await sheets.spreadsheets.values.get({
+                    spreadsheetId: lessonsLibrarySheetId,
+                    range: "A:F", // Assuming columns: Topic, Learning Activity, Resources, Vocabulary, Homework, Status
+                  });
+
+                  const rows = response.data.values || [];
+                  if (rows.length > 1) { // Skip header row
+                    // Find the first non-highlighted row (assuming status is in column F)
+                    let lessonRow = null;
+                    for (let i = 1; i < rows.length; i++) {
+                      const row = rows[i];
+                      const status = row[5] || ""; // Column F (index 5) for status
+                      // Skip rows that are marked as completed, cancelled, or highlighted
+                      if (!status.toLowerCase().includes("completed") &&
+                          !status.toLowerCase().includes("cancelled") &&
+                          !status.toLowerCase().includes("done") &&
+                          !status.toLowerCase().includes("highlighted")) {
+                        lessonRow = row;
+                        break;
+                      }
+                    }
+
+                    if (lessonRow) {
+                      console.log(`Found lesson row for student ${candidateId}:`, lessonRow);
+
+                      // Map spreadsheet columns to lesson details
+                      populatedDetails = {
+                        ...populatedDetails,
+                        topic: lessonRow[0] || null, // Column A: Topic
+                        learningActivity: lessonRow[1] || null, // Column B: Learning Activity
+                        resources: lessonRow[2] ? lessonRow[2].split(",").map((r: string) => r.trim()).filter((r: string) => r) : [], // Column C: Resources (comma-separated)
+                        vocabulary: lessonRow[3] ? lessonRow[3].split(",").map((v: string) => v.trim()).filter((v: string) => v) : [], // Column D: Vocabulary (comma-separated)
+                        homework: lessonRow[4] || null, // Column E: Homework
+                      };
+
+                      console.log(`Populated lesson details for student ${candidateId}:`, populatedDetails);
+                    } else {
+                      console.log(`No available lesson rows found in spreadsheet for student ${candidateId}`);
+                    }
+                  }
+                } else {
+                  console.log(`No lesson queue spreadsheet found for student ${candidateId}`);
+                }
+              }
+            } catch (error) {
+              console.error(`Error populating lesson details from spreadsheet for student ${candidateId}:`, error);
+              // Continue with empty lesson details if spreadsheet reading fails
+            }
+
+            stage(() => batch.set(lessonDetailsRef, populatedDetails));
           }
 
           // Maintain a minimal index (only for matched events) so we can
