@@ -225,11 +225,11 @@ export function TeacherDashboard() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading students...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto"></div>
+            <p className="mt-4 text-white">Loading students...</p>
           </div>
         </div>
       </main>
@@ -238,14 +238,14 @@ export function TeacherDashboard() {
 
   if (error) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="text-center">
-            <div className="text-red-600 text-2xl mb-4">⚠️</div>
-            <p className="text-red-600">{error}</p>
+            <div className="text-red-400 text-2xl mb-4">⚠️</div>
+            <p className="text-red-400">{error}</p>
             <button 
               onClick={fetchStudents}
-              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="mt-4 bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700"
             >
               Try Again
             </button>
@@ -256,19 +256,19 @@ export function TeacherDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
       {/* Header */}
-      <section className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
-        <div className="max-w-7xl mx-auto px-6 py-8">
+      <section className="max-w-7xl mx-auto px-4 py-16 rounded-2xl" style={{ backgroundColor: '#000000' }}>
+        <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-7xl">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold mb-2">👨‍🏫 Teacher Dashboard</h1>
-              <p className="text-blue-100">Manage your students and lessons</p>
+              <h1 className="text-3xl font-bold mb-2 text-white">👨‍🏫 Teacher Dashboard</h1>
+              <p className="text-gray-200">Manage your students and lessons</p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold">{students.length}</div>
-              <div className="text-blue-100 text-sm">Total Students</div>
-              <div className="text-blue-100 text-xs mt-1">
+              <div className="text-2xl font-bold text-white">{students.length}</div>
+              <div className="text-gray-200 text-sm">Total Students</div>
+              <div className="text-gray-200 text-xs mt-1">
                 {students.filter(s => (s.billing as Record<string, unknown>)?.active === true).length} Active
               </div>
             </div>
@@ -277,7 +277,7 @@ export function TeacherDashboard() {
       </section>
 
       {/* Students List */}
-      <section className="max-w-7xl mx-auto px-6 py-8">
+      <section className="max-w-7xl mx-auto px-6 py-8 rounded-2xl" style={{ backgroundColor: '#475037' }}>
         <div className="grid gap-6">
           {students.map((student) => (
             <div key={student.id} className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -357,7 +357,7 @@ export function TeacherDashboard() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleEmailStudent(student.email)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors text-sm"
                     >
                       📧 Email
                     </button>

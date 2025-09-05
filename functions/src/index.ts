@@ -742,6 +742,8 @@ apiRouter.post(
 
       // Process CEFR levels from answers
       const cefrLevels = processAssessmentAnswers(answers || {});
+      console.log("Assessment submission - processed CEFR levels:", cefrLevels);
+      console.log("Assessment submission - raw answers:", answers);
 
       await db.collection("assessments").doc(assessmentId).set({
         userId: userId,
@@ -758,6 +760,8 @@ apiRouter.post(
         lastAssessmentDate: now,
         updatedAt: now,
       }, { merge: true });
+
+      console.log("Updated user document with CEFR levels:", userId, cefrLevels);
 
       return res.status(200).json({ ok: true, assessmentId, userId, cefrLevels });
     } catch (err: unknown) {
@@ -787,6 +791,8 @@ apiRouter.get(
   async (req: Request, res: Response) => {
     try {
       const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      console.log("Getting assessments for user:", id);
+
       const assessmentsSnap = await db.collection("assessments")
         .where("userId", "==", id)
         .orderBy("createdAt", "desc")
@@ -796,6 +802,9 @@ apiRouter.get(
         id: doc.id,
         ...doc.data(),
       }));
+
+      console.log("Found assessments for user:", id, "count:", assessments.length);
+      console.log("Assessment details:", assessments);
 
       return res.json({ assessments });
     } catch (err: unknown) {
@@ -810,15 +819,25 @@ apiRouter.get(
   async (req: Request, res: Response) => {
     try {
       const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      console.log("Getting CEFR levels for user:", id);
+
       const userSnap = await db.collection("users").doc(id).get();
 
       if (!userSnap.exists) {
+        console.log("User not found:", id);
         return res.status(404).json({ error: "User not found" });
       }
 
       const userData = userSnap.data();
       const cefrLevels = userData?.cefrLevels || {};
       const lastAssessmentDate = userData?.lastAssessmentDate;
+
+      console.log("User data for CEFR levels:", {
+        userId: id,
+        cefrLevels,
+        lastAssessmentDate,
+        hasAssessment: !!lastAssessmentDate,
+      });
 
       return res.json({
         cefrLevels,
@@ -1234,6 +1253,86 @@ apiRouter.get("/test", (_req: Request, res: Response) => {
   return res.json({ message: "API router is working" });
 });
 
+// Debug endpoint to check user data
+apiRouter.get("/debug/user/:id", async (req: Request, res: Response) => {
+  try {
+    const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+    console.log("Debug: Getting user data for:", id);
+
+    const userSnap = await db.collection("users").doc(id).get();
+    const userData = userSnap.exists ? userSnap.data() : null;
+
+    const assessmentsSnap = await db.collection("assessments")
+      .where("userId", "==", id)
+      .get();
+    const assessments = assessmentsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    return res.json({
+      userId: id,
+      userExists: userSnap.exists,
+      userData: userData,
+      assessmentCount: assessments.length,
+      assessments: assessments,
+    });
+  } catch (err) {
+    console.error("Debug user error:", err);
+    return res.status(500).json({ error: "Debug failed" });
+  }
+});
+
+// Fix endpoint to update user document with CEFR levels from existing assessment
+apiRouter.post("/debug/fix-user-cefr/:id", async (req: Request, res: Response) => {
+  try {
+    const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+    console.log("Fix: Updating user CEFR levels for:", id);
+
+    // Get the most recent assessment
+    const assessmentsSnap = await db.collection("assessments")
+      .where("userId", "==", id)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+
+    if (assessmentsSnap.empty) {
+      return res.status(404).json({ error: "No assessments found for user" });
+    }
+
+    const assessment = assessmentsSnap.docs[0].data();
+    const cefrLevels = assessment.cefrLevels;
+    const submittedAt = assessment.submittedAt;
+
+    if (!cefrLevels) {
+      return res.status(400).json({ error: "No CEFR levels found in assessment" });
+    }
+
+    console.log("Fix: Found CEFR levels:", cefrLevels);
+    console.log("Fix: Assessment submitted at:", submittedAt);
+
+    // Update user document
+    const now = new Date();
+    const assessmentDate = submittedAt ? new Date(submittedAt) : now;
+
+    await db.collection("users").doc(id).set({
+      cefrLevels: cefrLevels,
+      lastAssessmentDate: assessmentDate,
+      updatedAt: now,
+    }, { merge: true });
+
+    console.log("Fix: Successfully updated user document with CEFR levels");
+
+    return res.json({
+      success: true,
+      userId: id,
+      cefrLevels: cefrLevels,
+      lastAssessmentDate: assessmentDate,
+      message: "User document updated successfully",
+    });
+  } catch (err) {
+    console.error("Fix user CEFR error:", err);
+    return res.status(500).json({ error: "Fix failed" });
+  }
+});
+
 // Test Google Translate API
 apiRouter.get("/test-translate", async (_req: Request, res: Response) => {
   try {
@@ -1312,7 +1411,7 @@ apiRouter.get("/test-calendar", async (_req: Request, res: Response) => {
 
     // Auth as the function's service account
     const auth = await google.auth.getClient({
-      scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+      scopes: ["https://www.googleapis.com/auth/calendar.readonly", "https://www.googleapis.com/auth/calendar.events"],
     });
     const calendar = google.calendar({ version: "v3", auth });
 
@@ -1337,6 +1436,7 @@ apiRouter.get("/test-calendar", async (_req: Request, res: Response) => {
       events: events.map((ev) => ({
         id: ev.id,
         summary: ev.summary,
+        description: ev.description,
         start: ev.start,
         end: ev.end,
         attendees: ev.attendees?.map((a) => ({
@@ -1434,33 +1534,6 @@ apiRouter.get(
       });
     } catch (err: unknown) {
       console.error("get sessions error", err);
-      return res.status(500).json({ error: "internal" });
-    }
-  });
-
-// Get user's CEFR levels
-apiRouter.get(
-  "/users/:id/cefr-levels",
-  async (req: Request, res: Response) => {
-    try {
-      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
-      const userSnap = await db.collection("users").doc(id).get();
-
-      if (!userSnap.exists) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      const userData = userSnap.data();
-      const cefrLevels = userData?.cefrLevels || {};
-      const lastAssessmentDate = userData?.lastAssessmentDate;
-
-      return res.json({
-        cefrLevels,
-        lastAssessmentDate,
-        hasAssessment: !!lastAssessmentDate,
-      });
-    } catch (err: unknown) {
-      console.error("get CEFR levels error", err);
       return res.status(500).json({ error: "internal" });
     }
   });
@@ -1576,6 +1649,42 @@ apiRouter.get(
     }
   });
 
+/**
+ * Helper function to format lesson details into calendar description
+ * @param {Object} details - The lesson details object
+ * @param {string|null} details.topic - The lesson topic
+ * @param {string[]} details.vocabulary - Array of vocabulary words
+ * @param {string|null} details.homework - Homework assignment
+ * @param {string[]} details.resources - Array of resource links
+ * @return {string} Formatted description string for Google Calendar
+ */
+function formatLessonDetailsForCalendar(details: {
+  topic?: string | null;
+  vocabulary?: string[];
+  homework?: string | null;
+  resources?: string[];
+}): string {
+  const sections: string[] = [];
+
+  if (details.topic) {
+    sections.push(`📚 Topic: ${details.topic}`);
+  }
+
+  if (details.vocabulary && details.vocabulary.length > 0) {
+    sections.push(`📝 Vocabulary:\n${details.vocabulary.map((word) => `• ${word}`).join("\n")}`);
+  }
+
+  if (details.homework) {
+    sections.push(`📋 Homework: ${details.homework}`);
+  }
+
+  if (details.resources && details.resources.length > 0) {
+    sections.push(`🔗 Resources:\n${details.resources.map((resource) => `• ${resource}`).join("\n")}`);
+  }
+
+  return sections.length > 0 ? sections.join("\n\n") : "";
+}
+
 // Update lesson details
 apiRouter.post(
   "/teacher/lessons/:lessonId/details",
@@ -1585,7 +1694,7 @@ apiRouter.post(
       const { topic, vocabulary, homework, learningActivity, resources, teacherNotes } = req.body || {};
 
       const now = new Date();
-      await db.collection("lessonDetails").doc(lessonId).set({
+      const lessonDetails = {
         topic: topic || null,
         vocabulary: vocabulary || [],
         homework: homework || null,
@@ -1594,7 +1703,55 @@ apiRouter.post(
         teacherNotes: teacherNotes || null,
         updatedAt: now,
         createdAt: now,
-      }, { merge: true });
+      };
+
+      // Save lesson details to Firestore
+      await db.collection("lessonDetails").doc(lessonId).set(lessonDetails, { merge: true });
+
+      // Update Google Calendar event description
+      try {
+        const calendarId = process.env.GOOGLE_CALENDAR_ID;
+        console.log("Calendar ID:", calendarId);
+
+        if (calendarId) {
+          const auth = await google.auth.getClient({
+            scopes: ["https://www.googleapis.com/auth/calendar.events"],
+          });
+          const calendar = google.calendar({ version: "v3", auth });
+
+          console.log("Getting current event for lesson:", lessonId);
+
+          // Get the current event to preserve other fields
+          const currentEvent = await calendar.events.get({
+            calendarId,
+            eventId: lessonId,
+          });
+
+          if (currentEvent.data) {
+            const description = formatLessonDetailsForCalendar(lessonDetails);
+            console.log("Formatted description for calendar:", description);
+
+            // Update the event with the new description
+            const updateResult = await calendar.events.update({
+              calendarId,
+              eventId: lessonId,
+              requestBody: {
+                ...currentEvent.data,
+                description: description,
+              },
+            });
+
+            console.log(`Successfully updated calendar event ${lessonId} with lesson details:`, updateResult.data?.description);
+          } else {
+            console.log("No current event data found for lesson:", lessonId);
+          }
+        } else {
+          console.log("No calendar ID configured");
+        }
+      } catch (calendarError) {
+        console.error("Error updating calendar event:", calendarError);
+        // Don't fail the entire request if calendar update fails
+      }
 
       return res.json({ ok: true });
     } catch (err: unknown) {
@@ -1646,7 +1803,7 @@ export const syncCalendar = onSchedule(
     // Auth as the function's service account (ADC). Make sure the calendar
     // is shared with it at least "See all event details".
     const auth = await google.auth.getClient({
-      scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+      scopes: ["https://www.googleapis.com/auth/calendar.readonly", "https://www.googleapis.com/auth/calendar.events"],
     });
     const calendar = google.calendar({ version: "v3", auth });
 
@@ -1929,6 +2086,39 @@ export const syncCalendar = onSchedule(
           const lessonDetailsRef = db.collection("lessonDetails").doc(eventId);
           const lessonDetailsSnap = await lessonDetailsRef.get();
           if (!lessonDetailsSnap.exists) {
+            // Create empty lesson details record
+            const emptyDetails = {
+              topic: null,
+              vocabulary: [],
+              homework: null,
+              learningActivity: null,
+              resources: [],
+              teacherNotes: null,
+              calendarEventId: eventId,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+
+            await lessonDetailsRef.set(emptyDetails);
+
+            // Update the calendar event description with empty details (will be empty initially)
+            try {
+              const description = formatLessonDetailsForCalendar(emptyDetails);
+              console.log("Updating new calendar event with description:", description);
+
+              const updateResult = await calendar.events.update({
+                calendarId,
+                eventId: eventId,
+                requestBody: {
+                  ...ev,
+                  description: description,
+                },
+              });
+              console.log(`Successfully updated new calendar event ${eventId} with empty lesson details structure:`, updateResult.data?.description);
+            } catch (calendarUpdateError) {
+              console.error("Error updating new calendar event:", calendarUpdateError);
+            }
+          } else {
             // Try to populate lesson details from student's lesson queue spreadsheet
             let populatedDetails = {
               topic: null,

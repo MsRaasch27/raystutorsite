@@ -54,8 +54,8 @@ export default function FreeTrialButton({ ctaText, className = "", variant = "pr
 
   const baseStyles =
     variant === "primary"
-      ? "bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-block text-center"
-      : "border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors inline-block text-center";
+      ? "bg-white text-amber-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-block text-center"
+      : "border-2 border-amber-600 text-amber-600 px-6 py-3 rounded-lg font-semibold hover:bg-amber-50 transition-colors inline-block text-center";
 
   return (
     <button

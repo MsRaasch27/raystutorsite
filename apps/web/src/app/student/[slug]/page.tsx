@@ -64,11 +64,11 @@ export default async function StudentPage({ params }: { params: Promise<{ slug: 
   // If user not found, show error or redirect
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="bg-white rounded-lg p-8 shadow-lg text-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+        <div className="bg-black bg-opacity-90 rounded-2xl p-8 shadow-lg text-center max-w-md mx-4">
           <div className="text-4xl mb-4">❌</div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">User Not Found</h1>
-          <p className="text-gray-600">The user profile you&apos;re looking for doesn&apos;t exist.</p>
+          <h1 className="text-2xl font-bold text-white mb-2">User Not Found</h1>
+          <p className="text-gray-200">The user profile you&apos;re looking for doesn&apos;t exist.</p>
         </div>
       </div>
     );

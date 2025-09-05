@@ -28,7 +28,6 @@ type User = {
   billing?: { active?: boolean } | null;
   vocabularySheetId?: string | null;
   lessonsLibrarySheetId?: string | null; // For teacher reference only
-  photo?: string | null;
   cefrLevels?: {
     understanding?: string;
     speaking?: string;
@@ -247,8 +246,8 @@ export function StudentPageClient({
               <div className="flex items-start">
                 <div className="text-blue-500 mr-2 mt-0.5">⏱️</div>
                 <div className="text-sm text-blue-800">
-                  <p className="font-medium mb-1">New appointments may take up to 5 minutes to appear</p>
-                  <p className="text-blue-600">If you just booked a lesson and don&apos;t see it here, please refresh the page in a few minutes.</p>
+                  <p className="font-medium mb-1">New appointments must be approved by both the teacher and the student before they will appear</p>
+                  <p className="text-blue-600">If you just booked a lesson and don&apos;t see it here, please accept the invitation in your Google calendar.</p>
                 </div>
               </div>
             </div>
@@ -269,11 +268,6 @@ export function StudentPageClient({
       case 'practice':
         return (
           <div>            
-            {/* CEFR Levels */}
-            <div className="mb-8">
-              <CEFRLevels userId={user.id} />
-            </div>
-
             {/* Hero's Journey Progress */}
             <div className="mb-8">
               <h3 className="text-xl font-bold text-gray-800 mb-4">🏆 My Progress</h3>
@@ -285,28 +279,11 @@ export function StudentPageClient({
                 <div className="w-full bg-gray-200 rounded-full h-4">
                   <div className="bg-gradient-to-r from-yellow-400 to-orange-500 h-4 rounded-full" style={{ width: '0.5%' }}></div>
                 </div>
-                <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-                  <div className="bg-green-100 rounded-lg p-3">
-                    <div className="text-2xl mb-1">✅</div>
-                    <p className="text-sm font-semibold text-green-700">Completed</p>
-                    <p className="text-xs text-green-600">{past.items.length} Lessons</p>
-                  </div>
-                  <div className="bg-blue-100 rounded-lg p-3">
-                    <div className="text-2xl mb-1">🎯</div>
-                    <p className="text-sm font-semibold text-blue-700">Scheduled</p>
-                    <p className="text-xs text-blue-600">{upcoming.items.length} Lessons</p>
-                  </div>
-                  <div className="bg-purple-100 rounded-lg p-3">
-                    <div className="text-2xl mb-1">⭐</div>
-                    <p className="text-sm font-semibold text-purple-700">Achievements</p>
-                    <p className="text-xs text-purple-600">0 Badges</p>
-                  </div>
-                </div>
               </div>
             </div>
 
             {/* Interactive Flashcard Deck */}
-            <div>
+            <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-800">🃏 My Flashcard Deck</h3>
                 {user.vocabularySheetId && (
@@ -327,6 +304,11 @@ export function StudentPageClient({
                 <FlashcardDeck userId={user.id} />
               </div>
             </div>
+
+            {/* CEFR Levels */}
+            <div>
+              <CEFRLevels userId={user.id} />
+            </div>
           </div>
         );
       
@@ -336,96 +318,118 @@ export function StudentPageClient({
   }, [activeTab, past.items, upcoming.items, renderAppointment, user.id]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
       {/* Banner Header */}
-      <section className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
-        <div className="max-w-6xl mx-auto px-6 py-8">
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            {/* Profile Image */}
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white bg-opacity-20 flex items-center justify-center border-4 border-white border-opacity-30 overflow-hidden">
-              {user.photo ? (
-                <img 
-                  src={user.photo} 
-                  alt="Profile photo" 
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // Fallback to default avatar if image fails to load
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                    target.nextElementSibling?.classList.remove('hidden');
-                  }}
-                />
-              ) : null}
-              <div className={`text-center ${user.photo ? 'hidden' : ''}`}>
-                <div className="text-3xl md:text-4xl mb-1">👤</div>
-                <p className="text-xs font-semibold">Photo</p>
-              </div>
-            </div>
-            
+      <section className="max-w-6xl mx-auto px-4 py-16 rounded-2xl" style={{ backgroundColor: '#000000' }}>
+        <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-6xl">
+          <div className="flex flex-col lg:flex-row items-start gap-6">
             {/* Welcome Content */}
             <div className="text-center md:text-left flex-1">
               <h1 className="text-3xl md:text-4xl font-bold mb-2">
                 Welcome, {user.name ?? user.email.split('@')[0]}!
               </h1>
-              <p className="text-lg md:text-xl text-blue-100">
+              <p className="text-lg md:text-xl text-blue-100 mb-6">
                 Learning Goal: {user.goals || "Master conversational English and build confidence in speaking"}
               </p>
+              
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                {hasCompletedAssessment ? (
+                  <button 
+                    disabled
+                    className="bg-gray-400 text-gray-600 px-6 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
+                    title="Assessment already completed"
+                  >
+                    ✅ Assessment Completed
+                  </button>
+                ) : (
+                  <a 
+                    href="https://forms.gle/396aRWwtMGvLgiwX6" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-lg inline-block text-center"
+                  >
+                    📝 Take Assessment
+                  </a>
+                )}
+                {locked ? (
+                  <button 
+                    disabled
+                    className="bg-gray-400 text-gray-600 px-6 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
+                    title="Schedule lessons after purchasing a plan"
+                  >
+                    📅 Schedule Lesson
+                  </button>
+                ) : sessionInfo && !sessionInfo.canSchedule ? (
+                  <button 
+                    disabled
+                    className="bg-gray-400 text-gray-600 px-6 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
+                    title="No sessions remaining. Purchase add-on sessions to continue."
+                  >
+                    📅 Schedule Lesson
+                  </button>
+                ) : (
+                  <a 
+                    href="https://calendly.com/msraasch27/50min" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-amber-700 transition-colors shadow-lg inline-block text-center"
+                  >
+                    📅 Schedule Lesson
+                  </a>
+                )}
+              </div>
             </div>
+
+            {/* Session Info (for paid users) - Right aligned */}
+            {isPaid && sessionInfo && (
+              <div className="w-full lg:w-auto lg:min-w-[300px]">
+                <div className={`border rounded-lg p-3 ${
+                  sessionInfo.sessionsRemaining > 0 
+                    ? "bg-green-50 border-green-200" 
+                    : "bg-red-50 border-red-200"
+                }`}>
+                  <div className={`text-sm ${sessionInfo.sessionsRemaining > 0 ? "text-green-800" : "text-red-800"}`}>
+                    <div className="font-semibold text-base mb-1">
+                      {sessionInfo.sessionsRemaining > 0 ? "📚 Sessions Available" : "⚠️ No Sessions Left"}
+                    </div>
+                    <div className="text-xs mb-2">
+                      {sessionInfo.sessionsRemaining > 0 
+                        ? `${sessionInfo.sessionsRemaining} of ${sessionInfo.totalAvailable} remaining`
+                        : "All sessions used this month"
+                      }
+                    </div>
+                    <div className="text-xs opacity-75">
+                      {sessionInfo.currentPlan.charAt(0).toUpperCase() + sessionInfo.currentPlan.slice(1)} Plan
+                    </div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex flex-col gap-2 mt-3">
+                    <button
+                      onClick={openPricingModal}
+                      className="bg-amber-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-amber-700 transition-colors"
+                    >
+                      🔄 Change Plan
+                    </button>
+                    <button
+                      onClick={() => openPricingModalWithPlan('addon')}
+                      className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                        sessionInfo.sessionsRemaining === 0 
+                          ? "bg-red-600 text-white hover:bg-red-700" 
+                          : "bg-orange-600 text-white hover:bg-orange-700"
+                      }`}
+                    >
+                      {sessionInfo.sessionsRemaining === 0 ? "🚨 Buy Add-ons" : "➕ Buy Add-ons"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Session Info Banner (for paid users) */}
-      {isPaid && sessionInfo && (
-        <section className="max-w-6xl mx-auto px-6 pt-6">
-          <div className={`border rounded-lg p-4 ${
-            sessionInfo.sessionsRemaining > 0 
-              ? "bg-green-50 border-green-200" 
-              : "bg-red-50 border-red-200"
-          }`}>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className={sessionInfo.sessionsRemaining > 0 ? "text-green-800" : "text-red-800"}>
-                <div className="font-semibold text-lg">
-                  {sessionInfo.sessionsRemaining > 0 ? "📚 Sessions Available" : "⚠️ No Sessions Left"}
-                </div>
-                <div className="text-sm">
-                  {sessionInfo.sessionsRemaining > 0 
-                    ? `${sessionInfo.sessionsRemaining} of ${sessionInfo.totalAvailable} sessions remaining this month`
-                    : "You've used all your sessions this month. Purchase add-on sessions to continue."
-                  }
-                </div>
-                <div className="text-xs mt-1">
-                  Plan: {sessionInfo.currentPlan.charAt(0).toUpperCase() + sessionInfo.currentPlan.slice(1)} 
-                  ({sessionInfo.monthlyLimit} monthly + {sessionInfo.addonSessions} add-on)
-                </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-2">
-                {/* Change Plan Button */}
-                <button
-                  onClick={openPricingModal}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-sm"
-                >
-                  🔄 Change Plan
-                </button>
-                
-                {/* Add-on Sessions Button */}
-                <button
-                  onClick={() => openPricingModalWithPlan('addon')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    sessionInfo.sessionsRemaining === 0 
-                      ? "bg-red-600 text-white hover:bg-red-700" 
-                      : "bg-orange-600 text-white hover:bg-orange-700"
-                  }`}
-                >
-                  {sessionInfo.sessionsRemaining === 0 ? "🚨 Buy Add-on Sessions" : "➕ Buy Add-on Sessions"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Lock banner (appears after first lesson if not paid) */}
       {locked && (
@@ -447,57 +451,6 @@ export function StudentPageClient({
         </section>
       )}
 
-      {/* Action Buttons */}
-      <section className="max-w-6xl mx-auto px-6 py-6">
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          {hasCompletedAssessment ? (
-            <button 
-              disabled
-              className="bg-gray-400 text-gray-600 px-8 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
-              title="Assessment already completed"
-            >
-              ✅ Assessment Completed
-            </button>
-          ) : (
-            <a 
-              href="https://forms.gle/396aRWwtMGvLgiwX6" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="bg-green-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-lg inline-block text-center"
-            >
-              📝 Take Assessment
-            </a>
-          )}
-          {locked ? (
-            <button 
-              disabled
-              className="bg-gray-400 text-gray-600 px-8 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
-              title="Schedule lessons after purchasing a plan"
-            >
-              📅 Schedule Lesson
-            </button>
-          ) : sessionInfo && !sessionInfo.canSchedule ? (
-            <button 
-              disabled
-              className="bg-gray-400 text-gray-600 px-8 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
-              title="No sessions remaining. Purchase add-on sessions to continue."
-            >
-              📅 Schedule Lesson
-            </button>
-          ) : (
-            <a 
-              href="https://calendly.com/msraasch27/50min" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg inline-block text-center"
-            >
-              📅 Schedule Lesson
-            </a>
-          )}
-
-
-        </div>
-      </section>
 
       {/* Navigation Tabs */}
       <section className="max-w-6xl mx-auto px-6">
@@ -507,8 +460,8 @@ export function StudentPageClient({
               onClick={() => setActiveTab('past')}
               className={`flex-1 py-4 px-6 text-center font-semibold transition-colors ${
                 activeTab === 'past' 
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' 
-                  : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                  ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50' 
+                  : 'text-gray-600 hover:text-amber-600 hover:bg-amber-50'
               }`}
             >
               📚 Past Lessons
@@ -517,8 +470,8 @@ export function StudentPageClient({
               onClick={() => setActiveTab('upcoming')}
               className={`flex-1 py-4 px-6 text-center font-semibold transition-colors ${
                 activeTab === 'upcoming' 
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' 
-                  : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                  ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50' 
+                  : 'text-gray-600 hover:text-amber-600 hover:bg-amber-50'
               }`}
             >
               🗓️ Upcoming Lessons
@@ -527,8 +480,8 @@ export function StudentPageClient({
               onClick={() => setActiveTab('practice')}
               className={`flex-1 py-4 px-6 text-center font-semibold transition-colors ${
                 activeTab === 'practice' 
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' 
-                  : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                  ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50' 
+                  : 'text-gray-600 hover:text-amber-600 hover:bg-amber-50'
               }`}
             >
               🎯 Practice
@@ -538,7 +491,7 @@ export function StudentPageClient({
       </section>
 
       {/* Main Content Area (locked -> dim + overlay) */}
-      <section className="max-w-6xl mx-auto px-6 pb-8 relative">
+      <section className="max-w-6xl mx-auto px-6 pb-8 relative rounded-2xl" style={{ backgroundColor: '#475037' }}>
         <div className={locked ? "pointer-events-none opacity-50" : ""}>
           <div className="bg-white rounded-b-xl shadow-lg p-6">
             {tabContent}
@@ -555,7 +508,7 @@ export function StudentPageClient({
               </div>
               <button
                 onClick={openPricingModal}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700"
+                className="bg-amber-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-amber-700"
               >
                 Choose a Plan
               </button>
