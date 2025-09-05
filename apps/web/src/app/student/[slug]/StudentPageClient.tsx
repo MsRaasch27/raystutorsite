@@ -25,6 +25,7 @@ type User = {
   name?: string | null;
   email: string;
   goals?: string | null;
+  timezone?: string | null;
   billing?: { active?: boolean } | null;
   vocabularySheetId?: string | null;
   lessonsLibrarySheetId?: string | null; // For teacher reference only
@@ -62,6 +63,19 @@ type Appt = {
   endTime?: string;
   location?: string;
   meetLink?: string;
+};
+
+type LessonDetails = {
+  topic?: string | null;
+  vocabulary?: string[];
+  homework?: string | null;
+  learningActivity?: string | null;
+  resources?: string[];
+  teacherNotes?: string | null;
+  calendarEventId?: string;
+  studentId?: string;
+  createdAt?: { _seconds: number; _nanoseconds: number } | string;
+  updatedAt?: { _seconds: number; _nanoseconds: number } | string;
 };
 
 function toDate(x: unknown): Date | null {
@@ -110,6 +124,8 @@ export function StudentPageClient({
   const [preSelectPlan, setPreSelectPlan] = useState<string | undefined>(undefined);
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [lessonDetails, setLessonDetails] = useState<Record<string, LessonDetails>>({});
+  const [loadingLessonDetails, setLoadingLessonDetails] = useState(false);
 
   const isPaid = !!user.billing?.active;
   const hasCompletedFirstLesson = past.items.length > 0;
@@ -132,6 +148,37 @@ export function StudentPageClient({
     }
   }, [user.id]);
 
+  // Fetch lesson details for past lessons
+  const fetchLessonDetails = useCallback(async () => {
+    if (past.items.length === 0) return;
+    
+    try {
+      setLoadingLessonDetails(true);
+      const details: Record<string, LessonDetails> = {};
+      
+      // Fetch lesson details for each past lesson
+      await Promise.all(
+        past.items.map(async (appt) => {
+          try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api-bzn2v7ik2a-uc.a.run.app'}/api/teacher/lessons/${appt.id}`);
+            if (response.ok) {
+              const data = await response.json();
+              details[appt.id] = data.details || {};
+            }
+          } catch (error) {
+            console.error(`Failed to fetch lesson details for ${appt.id}:`, error);
+          }
+        })
+      );
+      
+      setLessonDetails(details);
+    } catch (error) {
+      console.error("Failed to fetch lesson details:", error);
+    } finally {
+      setLoadingLessonDetails(false);
+    }
+  }, [past.items]);
+
   // Fetch session info on component mount
   useEffect(() => {
     if (isPaid) {
@@ -140,6 +187,11 @@ export function StudentPageClient({
       setLoadingSessions(false);
     }
   }, [isPaid, fetchSessionInfo]);
+
+  // Fetch lesson details when past lessons change
+  useEffect(() => {
+    fetchLessonDetails();
+  }, [fetchLessonDetails]);
 
   const handlePlanSelection = useCallback((option: PricingOption) => {
     setShowPricingModal(false);
@@ -216,6 +268,160 @@ export function StudentPageClient({
     );
   }, []);
 
+  // Function to convert user timezone string to IANA timezone identifier
+  const getValidTimezone = useCallback((timezone: string | null | undefined): string => {
+    if (!timezone) return 'UTC';
+    
+    // Map common timezone strings to IANA identifiers
+    const timezoneMap: Record<string, string> = {
+      'UTC−01:00 — Azores, Cape Verde': 'Atlantic/Azores',
+      'UTC+00:00 — London, Dublin': 'Europe/London',
+      'UTC+01:00 — Paris, Berlin': 'Europe/Paris',
+      'UTC+02:00 — Athens, Helsinki': 'Europe/Athens',
+      'UTC+03:00 — Moscow, Istanbul': 'Europe/Moscow',
+      'UTC+04:00 — Dubai, Baku': 'Asia/Dubai',
+      'UTC+05:00 — Karachi, Tashkent': 'Asia/Karachi',
+      'UTC+05:30 — Mumbai, Delhi': 'Asia/Kolkata',
+      'UTC+06:00 — Dhaka, Almaty': 'Asia/Dhaka',
+      'UTC+07:00 — Bangkok, Jakarta': 'Asia/Bangkok',
+      'UTC+08:00 — Beijing, Singapore': 'Asia/Shanghai',
+      'UTC+09:00 — Tokyo, Seoul': 'Asia/Tokyo',
+      'UTC+10:00 — Sydney, Melbourne': 'Australia/Sydney',
+      'UTC+11:00 — Nouméa, Port Vila': 'Pacific/Noumea',
+      'UTC+12:00 — Auckland, Fiji': 'Pacific/Auckland',
+      'UTC−12:00 — Baker Island': 'Pacific/Baker_Island',
+      'UTC−11:00 — American Samoa': 'Pacific/Pago_Pago',
+      'UTC−10:00 — Hawaii': 'Pacific/Honolulu',
+      'UTC−09:00 — Alaska': 'America/Anchorage',
+      'UTC−08:00 — Los Angeles, Vancouver': 'America/Los_Angeles',
+      'UTC−07:00 — Denver, Phoenix': 'America/Denver',
+      'UTC−06:00 — Chicago, Mexico City': 'America/Chicago',
+      'UTC−05:00 — New York, Toronto': 'America/New_York',
+      'UTC−04:00 — Santiago, Caracas': 'America/Santiago',
+      'UTC−03:00 — São Paulo, Buenos Aires': 'America/Sao_Paulo',
+      'UTC−02:00 — Mid-Atlantic': 'Atlantic/South_Georgia',
+    };
+    
+    // Check if it's already a valid IANA timezone
+    if (timezone.includes('/')) {
+      return timezone;
+    }
+    
+    // Return mapped timezone or fallback to UTC
+    return timezoneMap[timezone] || 'UTC';
+  }, []);
+
+  // Function to format date/time in user's timezone
+  const formatDateInTimezone = useCallback((date: Date): string => {
+    try {
+      const validTimezone = getValidTimezone(user.timezone);
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        timeZone: validTimezone
+      });
+    } catch (error) {
+      console.warn('Invalid timezone, falling back to UTC:', user.timezone, error);
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        timeZone: 'UTC'
+      });
+    }
+  }, [user.timezone, getValidTimezone]);
+
+  const formatTimeInTimezone = useCallback((date: Date): string => {
+    try {
+      const validTimezone = getValidTimezone(user.timezone);
+      return date.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true,
+        timeZone: validTimezone
+      });
+    } catch (error) {
+      console.warn('Invalid timezone, falling back to UTC:', user.timezone, error);
+      return date.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'UTC'
+      });
+    }
+  }, [user.timezone, getValidTimezone]);
+
+  // Function to render past lessons with lesson details
+  const renderPastLesson = useCallback((appt: Appt) => {
+    const startDate = toDate(appt.startTime || appt.start);
+    const endDate = toDate(appt.endTime || appt.end);
+    
+    if (!startDate) return null;
+
+    const details = lessonDetails[appt.id] || {};
+    const hasResources = details.resources && details.resources.length > 0;
+    const hasHomework = details.homework && details.homework.trim() !== '';
+
+    return (
+      <div key={appt.id} className="bg-white rounded-lg p-6 mb-6 border border-gray-200 shadow-sm">
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex-1">
+            <h3 className="font-semibold text-gray-800 mb-2 text-lg">
+              {details.topic || appt.title || "English Lesson"}
+            </h3>
+            <p className="text-gray-600 text-sm">
+              📅 {formatDateInTimezone(startDate)} at {formatTimeInTimezone(startDate)}
+            </p>
+            {endDate && (
+              <p className="text-gray-500 text-xs mt-1">
+                Duration: {formatTimeInTimezone(startDate)} - {formatTimeInTimezone(endDate)}
+              </p>
+            )}
+          </div>
+          <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+            Completed
+          </span>
+        </div>
+
+        {/* Homework Assignment */}
+        {hasHomework && (
+          <div className="mb-4">
+            <h4 className="font-medium text-gray-700 mb-2">📋 Homework Assignment</h4>
+            <p className="text-gray-600 text-sm bg-gray-50 p-3 rounded border-l-4 border-blue-400">
+              {details.homework}
+            </p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-3 mt-4">
+          {/* Review Materials Button */}
+          {hasResources && (
+            <a
+              href={details.resources![0]}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              📚 Review Materials
+            </a>
+          )}
+          
+          {/* Review Vocab Button */}
+          <button
+            onClick={() => setActiveTab('practice')}
+            className="inline-flex items-center bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors"
+          >
+            📝 Review Vocab
+          </button>
+        </div>
+      </div>
+    );
+  }, [lessonDetails, formatDateInTimezone, formatTimeInTimezone, setActiveTab]);
+
   // Memoize tab content to prevent unnecessary re-renders
   const tabContent = useMemo(() => {
     switch (activeTab) {
@@ -228,9 +434,14 @@ export function StudentPageClient({
                 <div className="text-4xl mb-4">📚</div>
                 <p className="text-gray-600">No past lessons yet. Schedule your first lesson to get started!</p>
               </div>
+            ) : loadingLessonDetails ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">⏳</div>
+                <p className="text-gray-600">Loading lesson details...</p>
+              </div>
             ) : (
               <div>
-                {past.items.map(appt => renderAppointment(appt, true))}
+                {past.items.map(appt => renderPastLesson(appt))}
               </div>
             )}
           </div>
