@@ -148,17 +148,18 @@ export function StudentPageClient({
     }
   }, [user.id]);
 
-  // Fetch lesson details for past lessons
+  // Fetch lesson details for past and upcoming lessons
   const fetchLessonDetails = useCallback(async () => {
-    if (past.items.length === 0) return;
+    const allLessons = [...past.items, ...upcoming.items];
+    if (allLessons.length === 0) return;
     
     try {
       setLoadingLessonDetails(true);
       const details: Record<string, LessonDetails> = {};
       
-      // Fetch lesson details for each past lesson
+      // Fetch lesson details for each lesson
       await Promise.all(
-        past.items.map(async (appt) => {
+        allLessons.map(async (appt) => {
           try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api-bzn2v7ik2a-uc.a.run.app'}/api/teacher/lessons/${appt.id}`);
             if (response.ok) {
@@ -177,7 +178,7 @@ export function StudentPageClient({
     } finally {
       setLoadingLessonDetails(false);
     }
-  }, [past.items]);
+  }, [past.items, upcoming.items]);
 
   // Fetch session info on component mount
   useEffect(() => {
@@ -354,6 +355,23 @@ export function StudentPageClient({
     }
   }, [user.timezone, getValidTimezone]);
 
+  // Function to get timezone abbreviation
+  const getTimezoneAbbreviation = useCallback((date: Date): string => {
+    try {
+      const validTimezone = getValidTimezone(user.timezone);
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: validTimezone,
+        timeZoneName: 'short'
+      });
+      const parts = formatter.formatToParts(date);
+      const timeZoneName = parts.find(part => part.type === 'timeZoneName');
+      return timeZoneName ? timeZoneName.value : 'UTC';
+    } catch (error) {
+      console.warn('Error getting timezone abbreviation, falling back to UTC:', error);
+      return 'UTC';
+    }
+  }, [user.timezone, getValidTimezone]);
+
   // Function to render past lessons with lesson details
   const renderPastLesson = useCallback((appt: Appt) => {
     const startDate = toDate(appt.startTime || appt.start);
@@ -422,6 +440,63 @@ export function StudentPageClient({
     );
   }, [lessonDetails, formatDateInTimezone, formatTimeInTimezone, setActiveTab]);
 
+  // Function to render upcoming lessons with lesson details
+  const renderUpcomingLesson = useCallback((appt: Appt) => {
+    const startDate = toDate(appt.startTime || appt.start);
+    const endDate = toDate(appt.endTime || appt.end);
+    
+    if (!startDate) return null;
+
+    const details = lessonDetails[appt.id] || {};
+    const timezoneAbbr = getTimezoneAbbreviation(startDate);
+
+    return (
+      <div key={appt.id} className="bg-gray-50 rounded-lg p-4 mb-4 border-l-4 border-blue-500">
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <h3 className="font-semibold text-gray-800 mb-1">
+              {appt.title || "English Lesson"}
+            </h3>
+            
+            {/* Topic from lesson details */}
+            {details.topic && (
+              <p className="text-gray-700 text-sm mb-2 font-medium">
+                Topic: {details.topic}
+              </p>
+            )}
+            
+            <p className="text-gray-600 text-sm mb-2">
+              {formatDateInTimezone(startDate)} at {formatTimeInTimezone(startDate)} {timezoneAbbr}
+            </p>
+            
+            {endDate && (
+              <p className="text-gray-500 text-xs">
+                Duration: {formatTimeInTimezone(startDate)} - {formatTimeInTimezone(endDate)}
+              </p>
+            )}
+          </div>
+          <div className="text-right">
+            <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+              Scheduled
+            </span>
+          </div>
+        </div>
+        {appt.meetLink && (
+          <div className="mt-3">
+            <a 
+              href={appt.meetLink} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
+            >
+              🎥 Join Meeting
+            </a>
+          </div>
+        )}
+      </div>
+    );
+  }, [lessonDetails, formatDateInTimezone, formatTimeInTimezone, getTimezoneAbbreviation]);
+
   // Memoize tab content to prevent unnecessary re-renders
   const tabContent = useMemo(() => {
     switch (activeTab) {
@@ -468,9 +543,14 @@ export function StudentPageClient({
                 <div className="text-4xl mb-4">📅</div>
                 <p className="text-gray-600">No upcoming lessons scheduled. Book a lesson to continue your learning journey!</p>
               </div>
+            ) : loadingLessonDetails ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">⏳</div>
+                <p className="text-gray-600">Loading lesson details...</p>
+              </div>
             ) : (
               <div>
-                {upcoming.items.map(appt => renderAppointment(appt, false))}
+                {upcoming.items.map(appt => renderUpcomingLesson(appt))}
               </div>
             )}
           </div>
