@@ -57,14 +57,14 @@ app.post("/oauth/verify", async (req: Request, res: Response) => {
 
     // Verify the ID token with Google
     const { OAuth2Client } = await import("google-auth-library");
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      throw new Error("GOOGLE_CLIENT_ID environment variable not set");
+    if (!process.env.GOOGLE_OAUTH_CLIENT_ID) {
+      throw new Error("GOOGLE_OAUTH_CLIENT_ID environment variable not set");
     }
-    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const client = new OAuth2Client(process.env.GOOGLE_OAUTH_CLIENT_ID);
 
     const ticket = await client.verifyIdToken({
       idToken: idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: process.env.GOOGLE_OAUTH_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();
@@ -101,7 +101,7 @@ app.post("/oauth/verify", async (req: Request, res: Response) => {
 // ----- OAuth Callback Handler -----
 app.post("/oauth/callback", async (req: Request, res: Response) => {
   try {
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    if (!process.env.GOOGLE_OAUTH_CLIENT_ID || !process.env.GOOGLE_OAUTH_CLIENT_SECRET) {
       return res.status(500).json({ error: "OAuth configuration missing" });
     }
 
@@ -121,8 +121,8 @@ app.post("/oauth/callback", async (req: Request, res: Response) => {
       },
       body: new URLSearchParams({
         code: decodedCode,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        client_id: process.env.GOOGLE_OAUTH_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET!,
         redirect_uri: "https://raystutorsite.web.app/auth/callback",
         grant_type: "authorization_code",
       }),
