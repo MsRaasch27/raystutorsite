@@ -23,7 +23,7 @@ export default function AuthCallbackContent() {
         }
 
         // Exchange code for user data
-        const response = await fetch("/api/auth/google-callback", {
+        const response = await fetch("https://us-central1-raystutorsite.cloudfunctions.net/api/oauth/callback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code }),
@@ -33,13 +33,23 @@ export default function AuthCallbackContent() {
           throw new Error("Failed to exchange code for user data");
         }
 
+        const userData = await response.json();
+        
+        // Store the ID token for authentication
+        if (userData.idToken) {
+          localStorage.setItem('auth_token', userData.idToken);
+        }
+
         setStatus("success");
         
         // Get the intended redirect destination
-        const redirectUrl = sessionStorage.getItem('freeTrialRedirect') || 'https://forms.gle/kMfysT3gYQ1PsqLQ8';
+        const redirectUrl = sessionStorage.getItem('freeTrialRedirect') || 
+                           sessionStorage.getItem('authRedirect') || 
+                           'https://forms.gle/kMfysT3gYQ1PsqLQ8';
         sessionStorage.removeItem('freeTrialRedirect');
+        sessionStorage.removeItem('authRedirect');
         
-        // Redirect to the form
+        // Redirect to the intended destination
         setTimeout(() => {
           window.location.href = redirectUrl;
         }, 1000);
