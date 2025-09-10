@@ -45,6 +45,146 @@ app.use(
 );
 app.use(express.json());
 
+// ----- Verify ID Token Endpoint -----
+app.post("/oauth/verify", async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Missing or invalid authorization header" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token with Google
+    const { OAuth2Client } = await import("google-auth-library");
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      throw new Error("GOOGLE_CLIENT_ID environment variable not set");
+    }
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+    const ticket = await client.verifyIdToken({
+      idToken: idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+
+    const { email, name, picture } = payload;
+
+    if (!email) {
+      return res.status(400).json({ error: "No email in token" });
+    }
+
+    // Get user data from Firestore
+    const userId = email.trim().toLowerCase();
+    const userDoc = await db.collection("users").doc(userId).get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userData = userDoc.data();
+    return res.json({
+      email: userData?.email || email,
+      name: userData?.name || name,
+      picture: userData?.photo || picture,
+    });
+  } catch (err) {
+    console.error("Token verification error:", err);
+    return res.status(401).json({ error: "Token verification failed" });
+  }
+});
+
+// ----- OAuth Callback Handler -----
+app.post("/oauth/callback", async (req: Request, res: Response) => {
+  try {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.status(500).json({ error: "OAuth configuration missing" });
+    }
+
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: "Missing authorization code" });
+    }
+
+    // Decode the authorization code (it comes URL-encoded from the callback)
+    const decodedCode = decodeURIComponent(code);
+
+    // Exchange authorization code for access token
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        code: decodedCode,
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        redirect_uri: "https://raystutorsite.web.app/auth/callback",
+        grant_type: "authorization_code",
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      console.error("Token exchange failed:", await tokenResponse.text());
+      return res.status(500).json({ error: "Failed to exchange code for token" });
+    }
+
+    const tokenData = await tokenResponse.json();
+    const { access_token: accessToken, id_token: idToken } = tokenData;
+
+    // Get user info from Google
+    const userInfoResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!userInfoResponse.ok) {
+      console.error("User info fetch failed:", await userInfoResponse.text());
+      return res.status(500).json({ error: "Failed to fetch user info" });
+    }
+
+    const userInfo = await userInfoResponse.json();
+    const { id, email, name, picture } = userInfo;
+
+    if (!email) {
+      return res.status(400).json({ error: "No email provided by Google" });
+    }
+
+    const userId = email.trim().toLowerCase();
+    const now = new Date();
+
+    // Save user to Firestore
+    await db.collection("users").doc(userId).set(
+      {
+        name: name || null,
+        email: email,
+        photo: picture || null,
+        googleId: id || null,
+        updatedAt: now,
+        createdAt: now,
+      },
+      { merge: true }
+    );
+
+    return res.json({
+      ok: true,
+      userId,
+      name,
+      email,
+      photo: picture,
+      idToken: idToken, // Include ID token for client-side authentication
+    });
+  } catch (err) {
+    console.error("OAuth callback error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ----- Google OAuth helper -----
 /**
  * Creates and returns a Google OAuth2 client with configured credentials
