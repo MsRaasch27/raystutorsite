@@ -3,6 +3,84 @@ import FreeTrialButton from "@/components/FreeTrialButton";
 export default async function HomePage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+      {/* Floating Candles */}
+      <div 
+        className="absolute top-8 right-8 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 3s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[150px] h-[150px] object-contain"
+        />
+      </div>
+      
+      <div 
+        className="absolute top-16 left-12 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 3.5s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[120px] h-[120px] object-contain"
+        />
+      </div>
+      
+      <div 
+        className="absolute top-32 right-32 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 2.8s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[100px] h-[100px] object-contain"
+        />
+      </div>
+      
+      <div 
+        className="absolute top-24 left-1/3 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 3.2s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[110px] h-[110px] object-contain"
+        />
+      </div>
+      
+      <div 
+        className="absolute top-40 right-16 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 2.5s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[90px] h-[90px] object-contain"
+        />
+      </div>
+      
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes slowBounce {
+            0%, 100% {
+              transform: translateY(0px);
+            }
+            50% {
+              transform: translateY(-15px);
+            }
+          }
+        `
+      }} />
 
 <section className="max-w-6xl mx-auto px-4 py-16 rounded-2xl" style={{ backgroundColor: '#000000' }}>
 
@@ -77,12 +155,11 @@ export default async function HomePage() {
             My Available Session Times
           </h2>
 
-
           {/* Google Calendar Embed */}
           <div className="bg-gray-100 rounded-lg p-2 md:p-4 relative">
             <div className="relative overflow-hidden rounded-lg" style={{ height: '400px', minHeight: '400px' }}>
               <iframe 
-                src="https://calendar.google.com/calendar/embed?src=f26f75f9a02913e20939a8112d76bee41479fec0a85e487a585017715a51b7c0%40group.calendar.google.com&ctz=Asia%2FBangkok" 
+                src="https://calendar.google.com/calendar/embed?src=851d007aa799df38b9c1c26d7a66fbdd6401620026e6b7429e535849df9447dd%40group.calendar.google.com&ctz=Asia%2FBangkok" 
                 style={{ border: 0, width: '100%', height: '100%', minHeight: '400px' }}
                 frameBorder="0" 
                 scrolling="no"
@@ -90,11 +167,6 @@ export default async function HomePage() {
               />
               
               {/* Optional: Transparent overlay to prevent direct booking */}
-              <div
-                className="absolute inset-0 bg-transparent cursor-not-allowed"
-                style={{ zIndex: 10 }}
-                title="Contact to book appointments"
-              ></div>
             </div>
             <div className="text-center mt-2 md:mt-4">
               <p className="text-gray-600 text-xs md:text-sm px-2">

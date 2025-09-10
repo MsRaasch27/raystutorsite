@@ -1,0 +1,4 @@
+# Misc Instructions
+
+1. If user fails to add, may need to refresh OAuth token using this endpoint: 
+https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fspreadsheets%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-translation%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&response_type=code&client_id=175418255342-4uaprn1bfp9vflp8rq78o0kmetspeco7.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Fraystutorsite.web.app%2Fapi%2Fauth%2Fgoogle%2Fcallback

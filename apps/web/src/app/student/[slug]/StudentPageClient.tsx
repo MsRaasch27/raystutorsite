@@ -132,6 +132,41 @@ export function StudentPageClient({
   const locked = hasCompletedFirstLesson && !isPaid;
   const hasCompletedAssessment = assessments.length > 0;
 
+  // Calculate level and progress based on completed lessons (50 lessons per level)
+  const completedLessons = past.items.length;
+  const currentLevel = Math.floor(completedLessons / 50);
+  const lessonsInCurrentLevel = completedLessons % 50;
+  const progressPercentage = (lessonsInCurrentLevel / 50) * 100; // 2% per lesson within current level
+  
+  // Calculate level info based on current level tier
+  const getLevelInfo = useCallback((level: number) => {
+    const levels = [
+      { name: "Beginner Explorer", color: "from-yellow-400 to-orange-500" },
+      { name: "Novice Learner", color: "from-orange-400 to-red-500" },
+      { name: "Developing Student", color: "from-red-400 to-pink-500" },
+      { name: "Intermediate Explorer", color: "from-pink-400 to-purple-500" },
+      { name: "Advanced Learner", color: "from-purple-400 to-indigo-500" },
+      { name: "Proficient Student", color: "from-indigo-400 to-blue-500" },
+      { name: "Expert Explorer", color: "from-blue-400 to-cyan-500" },
+      { name: "Master English Speaker", color: "from-cyan-400 to-emerald-500" },
+      { name: "Grandmaster Linguist", color: "from-emerald-400 to-teal-500" },
+      { name: "Legendary Polyglot", color: "from-teal-400 to-cyan-500" }
+    ];
+    
+    // If beyond the defined levels, continue with higher tiers
+    if (level >= levels.length) {
+      const extraLevels = level - levels.length + 1;
+      return { 
+        name: `Supreme Scholar (Tier ${extraLevels})`, 
+        color: "from-cyan-400 to-purple-500" 
+      };
+    }
+    
+    return levels[level];
+  }, []);
+
+  const levelInfo = getLevelInfo(currentLevel);
+
   // Fetch session information
   const fetchSessionInfo = useCallback(async () => {
     try {
@@ -372,37 +407,36 @@ export function StudentPageClient({
     }
   }, [user.timezone, getValidTimezone]);
 
-  // Function to render past lessons with lesson details
-  const renderPastLesson = useCallback((appt: Appt) => {
-    const startDate = toDate(appt.startTime || appt.start);
-    const endDate = toDate(appt.endTime || appt.end);
-    
-    if (!startDate) return null;
+   // Function to render past lessons with lesson details
+   const renderPastLesson = useCallback((appt: Appt) => {
+     const startDate = toDate(appt.startTime || appt.start);
+     const endDate = toDate(appt.endTime || appt.end);
+     
+     if (!startDate) return null;
 
-    const details = lessonDetails[appt.id] || {};
-    const hasResources = details.resources && details.resources.length > 0;
-    const hasHomework = details.homework && details.homework.trim() !== '';
+     const details = lessonDetails[appt.id] || {};
+     const hasResources = details.resources && details.resources.length > 0;
+     const hasHomework = details.homework && details.homework.trim() !== '';
+     const timezoneAbbr = getTimezoneAbbreviation(startDate);
 
-    return (
-      <div key={appt.id} className="bg-white rounded-lg p-6 mb-6 border border-gray-200 shadow-sm">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex-1">
-            <h3 className="font-semibold text-gray-800 mb-2 text-lg">
-              {details.topic || appt.title || "English Lesson"}
-            </h3>
-            <p className="text-gray-600 text-sm">
-              📅 {formatDateInTimezone(startDate)} at {formatTimeInTimezone(startDate)}
-            </p>
-            {endDate && (
-              <p className="text-gray-500 text-xs mt-1">
-                Duration: {formatTimeInTimezone(startDate)} - {formatTimeInTimezone(endDate)}
-              </p>
-            )}
-          </div>
-          <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-            Completed
-          </span>
-        </div>
+     return (
+       <div key={appt.id} className="bg-white rounded-lg p-6 mb-6 border border-gray-200 shadow-sm">
+         <div className="flex justify-between items-start mb-4">
+           <div className="flex-1">
+             <h3 className="font-semibold text-gray-800 mb-2 text-lg">
+               {details.topic || appt.title || "English Lesson"}
+             </h3>
+             <p className="text-gray-600 text-sm">
+               📅 {formatDateInTimezone(startDate)} at {formatTimeInTimezone(startDate)} {timezoneAbbr}
+             </p>
+             <p className="text-gray-500 text-xs mt-1">
+               Duration: 50 minutes
+             </p>
+           </div>
+           <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+             Completed
+           </span>
+         </div>
 
         {/* Homework Assignment */}
         {hasHomework && (
@@ -564,11 +598,21 @@ export function StudentPageClient({
               <h3 className="text-xl font-bold text-gray-800 mb-4">🏆 My Progress</h3>
               <div className="bg-gray-100 rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-lg font-semibold text-gray-700">Current Level: Beginner Explorer</span>
-                  <span className="text-sm text-gray-500">0% Complete</span>
+                  <span className="text-lg font-semibold text-gray-700">Current Level: {levelInfo.name}</span>
+                  <span className="text-sm text-gray-500">{Math.round(progressPercentage)}% Complete</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-4">
-                  <div className="bg-gradient-to-r from-yellow-400 to-orange-500 h-4 rounded-full" style={{ width: '0.5%' }}></div>
+                  <div 
+                    className={`bg-gradient-to-r ${levelInfo.color} h-4 rounded-full transition-all duration-500 ease-out`} 
+                    style={{ width: `${progressPercentage}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between items-center mt-2 text-xs text-gray-600">
+                  <span>{lessonsInCurrentLevel} lessons in current level</span>
+                  <span>{50 - lessonsInCurrentLevel} lessons to next level</span>
+                </div>
+                <div className="text-center mt-2 text-xs text-gray-500">
+                  Total: {completedLessons} lessons completed
                 </div>
               </div>
             </div>
@@ -610,6 +654,84 @@ export function StudentPageClient({
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+      {/* Floating Candles */}
+      <div 
+        className="absolute top-8 right-8 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 3s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[150px] h-[150px] object-contain"
+        />
+      </div>
+      
+      <div 
+        className="absolute top-16 left-12 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 3.5s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[120px] h-[120px] object-contain"
+        />
+      </div>
+      
+      <div 
+        className="absolute top-32 right-32 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 2.8s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[100px] h-[100px] object-contain"
+        />
+      </div>
+      
+      <div 
+        className="absolute top-24 left-1/3 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 3.2s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[110px] h-[110px] object-contain"
+        />
+      </div>
+      
+      <div 
+        className="absolute top-40 right-16 z-50 pointer-events-none"
+        style={{
+          animation: 'slowBounce 2.5s ease-in-out infinite'
+        }}
+      >
+        <img
+          src="/candle.png"
+          alt="Floating Candle"
+          className="w-[90px] h-[90px] object-contain"
+        />
+      </div>
+      
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes slowBounce {
+            0%, 100% {
+              transform: translateY(0px);
+            }
+            50% {
+              transform: translateY(-15px);
+            }
+          }
+        `
+      }} />
       {/* Banner Header */}
       <section className="max-w-6xl mx-auto px-4 py-16 rounded-2xl" style={{ backgroundColor: '#000000' }}>
         <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-6xl">
@@ -743,46 +865,84 @@ export function StudentPageClient({
       )}
 
 
-      {/* Navigation Tabs */}
-      <section className="max-w-6xl mx-auto px-6">
-        <div className="bg-white rounded-t-xl shadow-lg">
-          <div className="flex border-b">
+      {/* Main Content Area with Navigation (locked -> dim + overlay) */}
+      <section className="max-w-6xl mx-auto px-6 pb-8 relative rounded-2xl" style={{ backgroundColor: '#475037' }}>
+        {/* Navigation Buttons */}
+        <div className="py-6">
+          <div className="flex flex-col sm:flex-row gap-4 sm:justify-center">
             <button 
               onClick={() => setActiveTab('past')}
-              className={`flex-1 py-4 px-6 text-center font-semibold transition-colors ${
+              className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:w-[200px] ${
                 activeTab === 'past' 
-                  ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50' 
-                  : 'text-gray-600 hover:text-amber-600 hover:bg-amber-50'
+                  ? 'ring-4 ring-amber-400 ring-opacity-50 scale-105' 
+                  : 'hover:scale-105 hover:shadow-lg'
               }`}
+              style={{
+                backgroundImage: 'url(/PastLessons.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                height: '80px'
+              }}
             >
-              📚 Past Lessons
+              <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                <span className={`font-bold text-lg transition-colors ${
+                  activeTab === 'past' ? 'text-amber-200' : 'text-white'
+                }`}>
+                  Past Lessons
+                </span>
+              </div>
             </button>
+            
             <button 
               onClick={() => setActiveTab('upcoming')}
-              className={`flex-1 py-4 px-6 text-center font-semibold transition-colors ${
+              className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:w-[200px] ${
                 activeTab === 'upcoming' 
-                  ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50' 
-                  : 'text-gray-600 hover:text-amber-600 hover:bg-amber-50'
+                  ? 'ring-4 ring-amber-400 ring-opacity-50 scale-105' 
+                  : 'hover:scale-105 hover:shadow-lg'
               }`}
+              style={{
+                backgroundImage: 'url(/PastLessons.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                height: '80px'
+              }}
             >
-              🗓️ Upcoming Lessons
+              <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                <span className={`font-bold text-lg transition-colors ${
+                  activeTab === 'upcoming' ? 'text-amber-200' : 'text-white'
+                }`}>
+                  Upcoming Lessons
+                </span>
+              </div>
             </button>
+            
             <button 
               onClick={() => setActiveTab('practice')}
-              className={`flex-1 py-4 px-6 text-center font-semibold transition-colors ${
+              className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:w-[200px] ${
                 activeTab === 'practice' 
-                  ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50' 
-                  : 'text-gray-600 hover:text-amber-600 hover:bg-amber-50'
+                  ? 'ring-4 ring-amber-400 ring-opacity-50 scale-105' 
+                  : 'hover:scale-105 hover:shadow-lg'
               }`}
+              style={{
+                backgroundImage: 'url(/PastLessons.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                height: '80px'
+              }}
             >
-              🎯 Practice
+              <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                <span className={`font-bold text-lg transition-colors ${
+                  activeTab === 'practice' ? 'text-amber-200' : 'text-white'
+                }`}>
+                  Practice
+                </span>
+              </div>
             </button>
           </div>
         </div>
-      </section>
-
-      {/* Main Content Area (locked -> dim + overlay) */}
-      <section className="max-w-6xl mx-auto px-6 pb-8 relative rounded-2xl" style={{ backgroundColor: '#475037' }}>
         <div className={locked ? "pointer-events-none opacity-50" : ""}>
           <div className="bg-white rounded-b-xl shadow-lg p-6">
             {tabContent}

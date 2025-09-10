@@ -65,11 +65,13 @@ async function getValidOAuth2Client(): Promise<any | null> {
   try {
     const oauthDoc = await db.collection("integrations").doc("google_oauth").get();
     if (!oauthDoc.exists) {
+      console.log("No OAuth document found, OAuth not configured");
       return null;
     }
 
     const tokens = (oauthDoc.data() as any)?.tokens;
     if (!tokens) {
+      console.log("No OAuth tokens found in document");
       return null;
     }
 
@@ -92,6 +94,15 @@ async function getValidOAuth2Client(): Promise<any | null> {
         console.log("OAuth tokens refreshed successfully");
       } catch (refreshError) {
         console.error("Failed to refresh OAuth tokens:", refreshError);
+
+        // Log the OAuth failure for monitoring
+        await db.collection("oauth_failures").add({
+          error: "token_refresh_failed",
+          errorDetails: String(refreshError),
+          timestamp: new Date(),
+          action: "refresh_tokens",
+        });
+
         return null;
       }
     }
@@ -99,7 +110,52 @@ async function getValidOAuth2Client(): Promise<any | null> {
     return oauth2Client;
   } catch (error) {
     console.error("Error getting valid OAuth2 client:", error);
+
+    // Log the OAuth failure for monitoring
+    await db.collection("oauth_failures").add({
+      error: "oauth_client_error",
+      errorDetails: String(error),
+      timestamp: new Date(),
+      action: "get_oauth_client",
+    });
+
     return null;
+  }
+}
+
+/**
+ * Gets a Google API client with OAuth fallback to service account
+ * @param {string[]} scopes - Required API scopes
+ * @return {Promise<any>} Authenticated Google API client
+ */
+async function getRobustGoogleClient(scopes: string[]): Promise<any> {
+  // Try OAuth first
+  const oauth2Client = await getValidOAuth2Client();
+  if (oauth2Client) {
+    console.log("Using OAuth client for Google API access");
+    return oauth2Client;
+  }
+
+  // Fallback to service account
+  console.log("OAuth not available, falling back to service account");
+  try {
+    const serviceAccountClient = await google.auth.getClient({
+      scopes: scopes,
+    });
+    console.log("Service account authentication successful");
+    return serviceAccountClient;
+  } catch (serviceAccountError) {
+    console.error("Service account authentication failed:", serviceAccountError);
+
+    // Log the service account failure
+    await db.collection("oauth_failures").add({
+      error: "service_account_failed",
+      errorDetails: String(serviceAccountError),
+      timestamp: new Date(),
+      action: "service_account_fallback",
+    });
+
+    throw new Error("Both OAuth and service account authentication failed");
   }
 }
 
@@ -389,32 +445,17 @@ apiRouter.post(
       // Create a copy of the template vocabulary spreadsheet for the new user
       let vocabularySheetId = null;
       try {
-        // Prefer OAuth (acts as MsRaasch27) when available; fallback to service account
-        let drive = null as ReturnType<typeof google.drive> | null;
-        let sheets = null as ReturnType<typeof google.sheets> | null;
-        let authClient: any = null;
+        // Use robust authentication with OAuth fallback to service account
+        const authClient = await getRobustGoogleClient([
+          "https://www.googleapis.com/auth/spreadsheets",
+          "https://www.googleapis.com/auth/drive",
+          "https://www.googleapis.com/auth/cloud-translation",
+          "https://www.googleapis.com/auth/userinfo.profile",
+          "https://www.googleapis.com/auth/userinfo.email",
+        ]);
 
-        // Try to get valid OAuth client with token refresh
-        const oauth2Client = await getValidOAuth2Client();
-        if (oauth2Client) {
-          authClient = oauth2Client;
-          drive = google.drive({ version: "v3", auth: oauth2Client });
-          sheets = google.sheets({ version: "v4", auth: oauth2Client });
-        }
-
-        if (!drive || !sheets) {
-          authClient = await google.auth.getClient({
-            scopes: [
-              "https://www.googleapis.com/auth/spreadsheets",
-              "https://www.googleapis.com/auth/drive",
-              "https://www.googleapis.com/auth/cloud-translation",
-              "https://www.googleapis.com/auth/userinfo.profile",
-              "https://www.googleapis.com/auth/userinfo.email",
-            ],
-          });
-          drive = google.drive({ version: "v3", auth: authClient });
-          sheets = google.sheets({ version: "v4", auth: authClient });
-        }
+        const drive = google.drive({ version: "v3", auth: authClient });
+        const sheets = google.sheets({ version: "v4", auth: authClient });
 
         // Template spreadsheet ID from environment variable
         let templateSheetId = S_TEMPLATE_SHEET_ID.value();
@@ -630,32 +671,29 @@ apiRouter.post(
           console.error("Error details:", error);
         }
 
+        // Log the failure for monitoring
+        await db.collection("sheet_creation_failures").add({
+          userId: userId,
+          sheetType: "vocabulary",
+          error: String(error),
+          errorCode: (error as any)?.code || null,
+          timestamp: new Date(),
+        });
+
         // Don't fail the user creation if sheet creation fails
+        console.log(`Continuing user creation without vocabulary sheet for ${userId}`);
       }
 
       // Create a copy of the Master English Lessons Library spreadsheet for the new user (teacher use only)
       let lessonsLibrarySheetId = null;
       try {
-        // Prefer OAuth (acts as MsRaasch27) when available; fallback to service account
-        let drive = null as ReturnType<typeof google.drive> | null;
-        let authClient: any = null;
+        // Use robust authentication with OAuth fallback to service account
+        const authClient = await getRobustGoogleClient([
+          "https://www.googleapis.com/auth/drive",
+          "https://www.googleapis.com/auth/spreadsheets",
+        ]);
 
-        // Try to get valid OAuth client with token refresh
-        const oauth2Client = await getValidOAuth2Client();
-        if (oauth2Client) {
-          authClient = oauth2Client;
-          drive = google.drive({ version: "v3", auth: oauth2Client });
-        }
-
-        if (!drive) {
-          authClient = await google.auth.getClient({
-            scopes: [
-              "https://www.googleapis.com/auth/drive",
-              "https://www.googleapis.com/auth/spreadsheets",
-            ],
-          });
-          drive = google.drive({ version: "v3", auth: authClient });
-        }
+        const drive = google.drive({ version: "v3", auth: authClient });
 
         // Master English Lessons Library spreadsheet ID from environment variable
         const masterLessonsLibraryId = "1lPLZ-N09Iz2nj11sVnIicw0uThdAxmgPAA2oAAbihnc"; // Temporary hardcode for testing
@@ -696,7 +734,17 @@ apiRouter.post(
           console.error("Error details:", error);
         }
 
+        // Log the failure for monitoring
+        await db.collection("sheet_creation_failures").add({
+          userId: userId,
+          sheetType: "lessons_library",
+          error: String(error),
+          errorCode: (error as any)?.code || null,
+          timestamp: new Date(),
+        });
+
         // Don't fail the user creation if lessons library sheet creation fails
+        console.log(`Continuing user creation without lessons library sheet for ${userId}`);
       }
 
       await db.collection("users").doc(userId).set(
@@ -1253,6 +1301,72 @@ apiRouter.get("/test", (_req: Request, res: Response) => {
   return res.json({ message: "API router is working" });
 });
 
+// OAuth status monitoring endpoint
+apiRouter.get("/oauth/status", async (_req: Request, res: Response) => {
+  try {
+    const oauthDoc = await db.collection("integrations").doc("google_oauth").get();
+    const oauthExists = oauthDoc.exists;
+
+    let oauthStatus = "not_configured";
+    let tokenExpiry = null;
+    let isExpired = false;
+
+    if (oauthExists) {
+      const tokens = oauthDoc.data()?.tokens;
+      if (tokens) {
+        oauthStatus = "configured";
+        tokenExpiry = tokens.expiry_date;
+        isExpired = tokenExpiry && Date.now() >= tokenExpiry;
+
+        if (isExpired) {
+          oauthStatus = "expired";
+        }
+      } else {
+        oauthStatus = "no_tokens";
+      }
+    }
+
+    // Get recent OAuth failures
+    const recentFailures = await db.collection("oauth_failures")
+      .orderBy("timestamp", "desc")
+      .limit(5)
+      .get();
+
+    const failures = recentFailures.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Get recent sheet creation failures
+    const recentSheetFailures = await db.collection("sheet_creation_failures")
+      .orderBy("timestamp", "desc")
+      .limit(5)
+      .get();
+
+    const sheetFailures = recentSheetFailures.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.json({
+      oauth: {
+        status: oauthStatus,
+        configured: oauthExists,
+        tokenExpiry: tokenExpiry,
+        isExpired: isExpired,
+        refreshUrl: oauthStatus === "expired" || oauthStatus === "not_configured" ?
+          `${process.env.NEXT_PUBLIC_SITE_URL || "https://raystutorsite.web.app"}/api/auth/google/start` : null,
+      },
+      recentFailures: failures,
+      recentSheetFailures: sheetFailures,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error checking OAuth status:", error);
+    return res.status(500).json({ error: "Failed to check OAuth status" });
+  }
+});
+
 // Debug endpoint to check user data
 apiRouter.get("/debug/user/:id", async (req: Request, res: Response) => {
   try {
@@ -1277,6 +1391,203 @@ apiRouter.get("/debug/user/:id", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("Debug user error:", err);
     return res.status(500).json({ error: "Debug failed" });
+  }
+});
+
+// Add vocabulary from completed lesson to student's vocabulary sheet
+apiRouter.post("/lessons/:lessonId/add-vocabulary", async (req: Request, res: Response) => {
+  try {
+    const lessonId = req.params.lessonId;
+    console.log("Adding vocabulary for completed lesson:", lessonId);
+
+    // Get lesson details
+    const lessonDetailsSnap = await db.collection("lessonDetails").doc(lessonId).get();
+    if (!lessonDetailsSnap.exists) {
+      return res.status(404).json({ error: "Lesson details not found" });
+    }
+
+    const lessonDetails = lessonDetailsSnap.data();
+    const vocabulary = lessonDetails?.vocabulary || [];
+
+    if (vocabulary.length === 0) {
+      return res.json({ message: "No vocabulary to add", added: 0 });
+    }
+
+    // Get the lesson appointment to find the student
+    const appointmentSnap = await db.collection("calendarEvents").doc(lessonId).get();
+    if (!appointmentSnap.exists) {
+      return res.status(404).json({ error: "Lesson appointment not found" });
+    }
+
+    const appointmentData = appointmentSnap.data();
+    const studentId = appointmentData?.studentId;
+
+    if (!studentId) {
+      return res.status(404).json({ error: "Student ID not found for lesson" });
+    }
+
+    // Get student data to find vocabulary sheet ID and native language
+    const studentSnap = await db.collection("users").doc(studentId).get();
+    if (!studentSnap.exists) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    const studentData = studentSnap.data();
+    const vocabularySheetId = studentData?.vocabularySheetId;
+    const nativeLanguage = studentData?.natLang;
+
+    if (!vocabularySheetId) {
+      return res.status(404).json({ error: "Student vocabulary sheet not found" });
+    }
+
+    console.log(`Adding ${vocabulary.length} vocabulary words to sheet ${vocabularySheetId} for student ${studentId}`);
+
+    // Get Google Sheets API client
+    let sheets = null as ReturnType<typeof google.sheets> | null;
+    let authClient: any = null;
+
+    // Try to get valid OAuth client with token refresh
+    const oauth2Client = await getValidOAuth2Client();
+    if (oauth2Client) {
+      authClient = oauth2Client;
+      sheets = google.sheets({ version: "v4", auth: oauth2Client });
+    }
+
+    if (!sheets) {
+      authClient = await google.auth.getClient({
+        scopes: [
+          "https://www.googleapis.com/auth/spreadsheets",
+          "https://www.googleapis.com/auth/cloud-translation",
+        ],
+      });
+      sheets = google.sheets({ version: "v4", auth: authClient });
+    }
+
+    // Get current data to find the next empty row
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: vocabularySheetId,
+      range: "A:A", // Get all values from column A
+    });
+
+    const currentRows = response.data.values || [];
+    const nextRowIndex = currentRows.length + 1; // Next empty row
+
+    // Prepare vocabulary data (English words in column A)
+    const vocabularyData = vocabulary.map((word: string) => [word.trim()]);
+
+    // Add vocabulary to the sheet
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: vocabularySheetId,
+      range: `A${nextRowIndex}:A${nextRowIndex + vocabulary.length - 1}`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: vocabularyData,
+      },
+    });
+
+    console.log(`Added ${vocabulary.length} vocabulary words to rows ${nextRowIndex}-${nextRowIndex + vocabulary.length - 1}`);
+
+    // Translate the new vocabulary if native language is available
+    if (nativeLanguage) {
+      try {
+        // Map language names to language codes
+        const languageCodeMap: Record<string, string> = {
+          "Spanish": "es",
+          "French": "fr",
+          "German": "de",
+          "Italian": "it",
+          "Portuguese": "pt",
+          "Russian": "ru",
+          "Japanese": "ja",
+          "Korean": "ko",
+          "Chinese": "zh",
+          "Arabic": "ar",
+          "Hindi": "hi",
+          "Thai": "th",
+          "Vietnamese": "vi",
+          "Indonesian": "id",
+          "Dutch": "nl",
+          "Swedish": "sv",
+          "Norwegian": "no",
+          "Danish": "da",
+          "Finnish": "fi",
+          "Polish": "pl",
+          "Czech": "cs",
+          "Hungarian": "hu",
+          "Turkish": "tr",
+          "Greek": "el",
+          "Hebrew": "he",
+          "Persian": "fa",
+          "Urdu": "ur",
+          "Bengali": "bn",
+          "Tamil": "ta",
+          "Telugu": "te",
+          "Marathi": "mr",
+          "Gujarati": "gu",
+          "Kannada": "kn",
+          "Malayalam": "ml",
+          "Punjabi": "pa",
+        };
+
+        const targetLanguage = languageCodeMap[nativeLanguage] || "es";
+        console.log(`Translating vocabulary to ${targetLanguage} for native language: ${nativeLanguage}`);
+
+        // Use Google Translate API
+        const translate = google.translate({ version: "v2", auth: authClient });
+
+        // Translate each vocabulary word
+        const translations: string[][] = [];
+        for (const word of vocabulary) {
+          try {
+            console.log(`Translating "${word}" to ${targetLanguage}...`);
+
+            const translationResponse = await translate.translations.translate({
+              requestBody: {
+                q: [word.trim()],
+                target: targetLanguage,
+                source: "en",
+              },
+            });
+
+            const translation = (translationResponse.data as any).data?.translations?.[0]?.translatedText || "";
+            translations.push([translation]);
+            console.log(`Translated "${word}" to "${translation}"`);
+          } catch (translationError) {
+            console.error(`Error translating "${word}":`, translationError);
+            translations.push([""]); // Empty string if translation fails
+          }
+        }
+
+        // Update column B with translations
+        if (translations.length > 0) {
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: vocabularySheetId,
+            range: `B${nextRowIndex}:B${nextRowIndex + translations.length - 1}`,
+            valueInputOption: "RAW",
+            requestBody: {
+              values: translations,
+            },
+          });
+          console.log(`Added ${translations.length} translations to column B`);
+        }
+      } catch (translationError) {
+        console.error("Error translating vocabulary:", translationError);
+        // Don't fail the entire operation if translation fails
+      }
+    }
+
+    return res.json({
+      success: true,
+      lessonId,
+      studentId,
+      vocabularySheetId,
+      added: vocabulary.length,
+      translated: nativeLanguage ? vocabulary.length : 0,
+      message: `Successfully added ${vocabulary.length} vocabulary words to student's sheet`,
+    });
+  } catch (err) {
+    console.error("Add vocabulary error:", err);
+    return res.status(500).json({ error: "Failed to add vocabulary" });
   }
 });
 
@@ -2143,23 +2454,11 @@ export const syncCalendar = onSchedule(
                 if (lessonsLibrarySheetId) {
                   console.log(`Attempting to populate lesson details from spreadsheet ${lessonsLibrarySheetId} for student ${candidateId}`);
 
-                  // Get Google Sheets API client
-                  let sheets = null as ReturnType<typeof google.sheets> | null;
-                  let authClient: any = null;
-
-                  // Try to get valid OAuth client with token refresh
-                  const oauth2Client = await getValidOAuth2Client();
-                  if (oauth2Client) {
-                    authClient = oauth2Client;
-                    sheets = google.sheets({ version: "v4", auth: oauth2Client });
-                  }
-
-                  if (!sheets) {
-                    authClient = await google.auth.getClient({
-                      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-                    });
-                    sheets = google.sheets({ version: "v4", auth: authClient });
-                  }
+                  // Get Google Sheets API client with robust authentication
+                  const authClient = await getRobustGoogleClient([
+                    "https://www.googleapis.com/auth/spreadsheets.readonly",
+                  ]);
+                  const sheets = google.sheets({ version: "v4", auth: authClient });
 
                   // Read the first non-highlighted row from the lesson queue
                   const response = await sheets.spreadsheets.values.get({
@@ -2212,6 +2511,40 @@ export const syncCalendar = onSchedule(
             }
 
             stage(() => batch.set(lessonDetailsRef, populatedDetails));
+          }
+
+          // Check if this lesson was just completed (moved from upcoming to past)
+          // and add vocabulary to student's sheet if lesson has vocabulary
+          if (!isUpcoming(startISO, endISO) && isRecent(startISO, endISO)) {
+            // This is a recently completed lesson, check if it has vocabulary
+            const lessonDetailsSnap = await lessonDetailsRef.get();
+            if (lessonDetailsSnap.exists) {
+              const lessonDetails = lessonDetailsSnap.data();
+              const vocabulary = lessonDetails?.vocabulary || [];
+
+              if (vocabulary.length > 0) {
+                console.log(`Lesson ${eventId} completed with ${vocabulary.length} vocabulary words, adding to student sheet`);
+
+                // Call the vocabulary addition endpoint
+                try {
+                  const response = await fetch(`${process.env.FUNCTIONS_URL || "https://api-bzn2v7ik2a-uc.a.run.app"}/api/lessons/${eventId}/add-vocabulary`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                  });
+
+                  if (response.ok) {
+                    const result = await response.json();
+                    console.log(`Successfully added vocabulary for lesson ${eventId}:`, result);
+                  } else {
+                    console.error(`Failed to add vocabulary for lesson ${eventId}:`, response.status, await response.text());
+                  }
+                } catch (error) {
+                  console.error(`Error calling vocabulary addition for lesson ${eventId}:`, error);
+                }
+              }
+            }
           }
 
           // Maintain a minimal index (only for matched events) so we can
