@@ -1,4 +1,5 @@
 import { StudentPageClient } from "./StudentPageClient";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 // Helper function to fetch data from API
 async function fetchUserData(userId: string) {
@@ -75,11 +76,13 @@ export default async function StudentPage({ params }: { params: Promise<{ slug: 
   }
   
   return (
-    <StudentPageClient 
-      user={user}
-      upcoming={upcoming}
-      past={past}
-      assessments={assessments}
-    />
+    <ProtectedRoute studentEmail={userId}>
+      <StudentPageClient 
+        user={user}
+        upcoming={upcoming}
+        past={past}
+        assessments={assessments}
+      />
+    </ProtectedRoute>
   );
 }
