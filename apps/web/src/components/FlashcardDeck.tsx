@@ -6,9 +6,10 @@ import { Flashcard } from "./Flashcard";
 type VocabularyWord = {
   id: string;
   english: string;
-  thai: string;
-  partOfSpeech: string;
+  [key: string]: string | undefined; // For native language field (dynamic key)
   example: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type FlashcardProgress = {
@@ -21,6 +22,13 @@ type FlashcardProgress = {
   updatedAt: string;
 };
 
+type User = {
+  id: string;
+  name?: string | null;
+  email: string;
+  natLang?: string | null;
+};
+
 interface FlashcardDeckProps {
   userId: string;
 }
@@ -28,6 +36,7 @@ interface FlashcardDeckProps {
 export function FlashcardDeck({ userId }: FlashcardDeckProps) {
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [progress, setProgress] = useState<Record<string, FlashcardProgress>>({});
+  const [user, setUser] = useState<User | null>(null);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,10 +48,17 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
         setIsLoading(true);
         setError(null);
 
-        const [wordsRes, progressRes] = await Promise.all([
+        const [userRes, wordsRes, progressRes] = await Promise.all([
+          fetch(`/api/users/${encodeURIComponent(userId)}`),
           fetch(`/api/vocabulary?userId=${encodeURIComponent(userId)}`),
           fetch(`/api/users/${encodeURIComponent(userId)}/flashcards`),
         ]);
+
+        if (!userRes.ok) {
+          throw new Error("Failed to fetch user data");
+        }
+        const userData = await userRes.json();
+        setUser(userData);
 
         if (!wordsRes.ok) {
           throw new Error("Failed to fetch vocabulary");
@@ -188,7 +204,7 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
       <div className="text-center py-8">
         <div className="text-4xl mb-4">📚</div>
         <p className="text-gray-600 mb-4">No vocabulary words available.</p>
-        <p className="text-sm text-gray-500">Please check your Google Sheets configuration.</p>
+        <p className="text-sm text-gray-500">Add some vocabulary words to get started with flashcards.</p>
       </div>
     );
   }
@@ -257,9 +273,10 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
       </div>
 
       {/* Current Card */}
-      {currentCard && (
+      {currentCard && user && (
         <Flashcard
           word={currentCard}
+          user={user}
           onRate={handleRate}
           progress={progress[currentCard.id]}
         />

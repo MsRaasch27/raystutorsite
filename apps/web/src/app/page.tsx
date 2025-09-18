@@ -2,7 +2,9 @@ import FreeTrialButton from "@/components/FreeTrialButton";
 
 export default async function HomePage() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+    <>
+      {/* SEO-optimized content structure */}
+      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
       {/* Floating Candles */}
       <div 
         className="absolute top-8 right-8 z-50 pointer-events-none"
@@ -100,10 +102,10 @@ export default async function HomePage() {
               {/* Header Text */}
               <div className="text-center md:text-left flex-1">
                 <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 text-white">
-                  Level Up Your English
+                  Level Up Your English Skills
                 </h1>
                 <p className="text-lg md:text-xl lg:text-2xl text-white max-w-2xl">
-                  Personalized gamified English language learning designed to help you crush your language goals fast
+                  Personalized gamified English language learning designed to help you crush your language goals fast. TEFL-certified tutoring with over a decade of experience in education and gaming.
                 </p>
               </div>
             </div>
@@ -128,15 +130,15 @@ export default async function HomePage() {
         {/* About Section */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-white mb-6 text-center">
-            Transform Your Learning Journey
+            Transform Your English Learning Journey
           </h2>
           <p className="text-lg text-gray-200 mb-8 text-center max-w-3xl mx-auto">
-            With over a decade of experience in the education industry as well as several years in the gaming industry, I specialize in making complex subjects fun and interesting to learn. With me as your TEFL-certified language tutor, you can be confident in achieving your language goals.
+            With over a decade of experience in the education industry as well as several years in the gaming industry, I specialize in making complex subjects fun and interesting to learn. As your TEFL-certified English language tutor, I combine proven teaching methods with gamified learning experiences to help you achieve your language goals faster and more effectively.
           </p>
           <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
             <div className="flex items-center justify-center">
               <div className="w-2 h-2 bg-blue-400 rounded-full mr-3"></div>
-              <span className="text-gray-200">One-on-one personalized instruction</span>
+              <span className="text-gray-200">One-on-one personalized English instruction</span>
             </div>
             <div className="flex items-center justify-center">
               <div className="w-2 h-2 bg-blue-400 rounded-full mr-3"></div>
@@ -145,6 +147,29 @@ export default async function HomePage() {
             <div className="flex items-center justify-center">
               <div className="w-2 h-2 bg-blue-400 rounded-full mr-3"></div>
               <span className="text-gray-200">Proven track record of student success</span>
+            </div>
+          </div>
+          
+          {/* Additional SEO content */}
+          <div className="mt-12 text-center">
+            <h3 className="text-2xl font-bold text-white mb-4">Why Choose Ray Raasch for English Tutoring?</h3>
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left">
+              <div>
+                <h4 className="text-xl font-semibold text-white mb-3">TEFL-Certified Expertise</h4>
+                <p className="text-gray-200">Certified Teaching English as a Foreign Language instructor with specialized training in effective language teaching methodologies.</p>
+              </div>
+              <div>
+                <h4 className="text-xl font-semibold text-white mb-3">Gamified Learning Approach</h4>
+                <p className="text-gray-200">Unique combination of education and gaming industry experience creates engaging, interactive learning experiences that make English fun to learn.</p>
+              </div>
+              <div>
+                <h4 className="text-xl font-semibold text-white mb-3">Personalized Curriculum</h4>
+                <p className="text-gray-200">Tailored lesson plans designed specifically for your learning style, goals, and current English proficiency level.</p>
+              </div>
+              <div>
+                <h4 className="text-xl font-semibold text-white mb-3">Flexible Online Sessions</h4>
+                <p className="text-gray-200">Convenient online English tutoring sessions that fit your schedule, with sessions available across different time zones.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -178,9 +203,9 @@ export default async function HomePage() {
 
         {/* Contact Info */}
         <div className="mt-16 text-center">
-          <h3 className="text-2xl font-bold text-white mb-4">Ready to Get Started?</h3>
+          <h3 className="text-2xl font-bold text-white mb-4">Ready to Start Your English Learning Journey?</h3>
           <p className="text-gray-200 mb-6">
-            Have questions? I&apos;m here to help you succeed.
+            Have questions about English tutoring? I&apos;m here to help you succeed. Book your free trial session today and experience the difference personalized, gamified English learning can make.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a href="mailto:msraasch27@gmail.com" className="bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-amber-700 transition-colors">
@@ -194,9 +219,13 @@ export default async function HomePage() {
       {/* Footer */}
       <footer className="bg-gray-800 text-white py-8 mt-16">
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <p>&copy; 2025 Ray Raasch. All rights reserved.</p>
+          <p>&copy; 2025 Ray Raasch - TEFL Certified English Language Tutor. All rights reserved.</p>
+          <p className="mt-2 text-sm text-gray-400">
+            Professional English tutoring services with personalized, gamified learning experiences.
+          </p>
         </div>
       </footer>
     </main>
+    </>
   );
 }

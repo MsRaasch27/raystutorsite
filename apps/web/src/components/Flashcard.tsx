@@ -5,9 +5,17 @@ import { useState, useCallback } from "react";
 type VocabularyWord = {
   id: string;
   english: string;
-  thai: string;
-  partOfSpeech: string;
+  [key: string]: string | undefined; // For native language field (dynamic key)
   example: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type User = {
+  id: string;
+  name?: string | null;
+  email: string;
+  natLang?: string | null;
 };
 
 type FlashcardProgress = {
@@ -22,14 +30,21 @@ type FlashcardProgress = {
 
 interface FlashcardProps {
   word: VocabularyWord;
+  user: User;
   onRate: (wordId: string, difficulty: "easy" | "medium" | "hard") => Promise<void>;
   progress?: FlashcardProgress;
 }
 
-export function Flashcard({ word, onRate, progress }: FlashcardProps) {
+export function Flashcard({ word, user, onRate, progress }: FlashcardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isRating, setIsRating] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+
+  // Get the native language value from the word
+  const getNativeLanguageValue = useCallback(() => {
+    const nativeLangKey = user?.natLang || "nativeLanguage";
+    return word[nativeLangKey] || "";
+  }, [word, user?.natLang]);
 
   const handleFlip = useCallback(() => {
     setIsFlipped(!isFlipped);
@@ -114,7 +129,6 @@ export function Flashcard({ word, onRate, progress }: FlashcardProps) {
             <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg p-6 flex flex-col justify-center items-center text-white relative">
               <div className="text-center">
                 <h3 className="text-2xl font-bold mb-2">{word.english}</h3>
-                <p className="text-blue-100 text-sm mb-4">{word.partOfSpeech}</p>
                 <p className="text-blue-200 text-xs italic">Tap to reveal answer</p>
               </div>
               
@@ -143,7 +157,7 @@ export function Flashcard({ word, onRate, progress }: FlashcardProps) {
           <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180">
             <div className="w-full h-full bg-gradient-to-br from-green-500 to-teal-600 rounded-xl shadow-lg p-6 flex flex-col justify-center items-center text-white relative">
               <div className="text-center">
-                <h3 className="text-2xl font-bold mb-2">{word.thai}</h3>
+                <h3 className="text-2xl font-bold mb-2">{getNativeLanguageValue()}</h3>
                 <p className="text-green-100 text-sm mb-2">{word.english}</p>
                 {word.example && (
                   <p className="text-green-200 text-xs italic mb-4">&ldquo;{word.example}&rdquo;</p>
@@ -151,15 +165,19 @@ export function Flashcard({ word, onRate, progress }: FlashcardProps) {
                 <p className="text-green-200 text-xs">Tap to flip back</p>
               </div>
               
-              {/* Audio button for Thai */}
+              {/* Audio button for native language */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleTextToSpeech(word.thai, "th-TH");
+                  const nativeValue = getNativeLanguageValue();
+                  if (nativeValue) {
+                    // Use a generic language code for now, could be enhanced to detect specific languages
+                    handleTextToSpeech(nativeValue, "en-US");
+                  }
                 }}
                 disabled={isPlayingAudio}
                 className="absolute top-4 right-4 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-2 transition-all duration-200 disabled:opacity-50"
-                title="Listen to Thai pronunciation"
+                title={`Listen to ${user?.natLang || "native language"} pronunciation`}
               >
                 {isPlayingAudio ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

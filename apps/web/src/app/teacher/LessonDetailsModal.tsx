@@ -233,7 +233,7 @@ export function LessonDetailsModal({
                 value={details.topic || ""}
                 onChange={(e) => setDetails(prev => ({ ...prev, topic: e.target.value }))}
                 placeholder="Enter the lesson topic..."
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 rows={2}
               />
             </div>
@@ -261,7 +261,7 @@ export function LessonDetailsModal({
                     value={newVocabulary}
                     onChange={(e) => setNewVocabulary(e.target.value)}
                     placeholder="Add vocabulary word..."
-                    className="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     onKeyPress={(e) => e.key === 'Enter' && addVocabulary()}
                   />
                   <button
@@ -283,7 +283,7 @@ export function LessonDetailsModal({
                 value={details.learningActivity || ""}
                 onChange={(e) => setDetails(prev => ({ ...prev, learningActivity: e.target.value }))}
                 placeholder="Describe the main learning activity..."
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 rows={3}
               />
             </div>
@@ -311,7 +311,7 @@ export function LessonDetailsModal({
                     value={newResource}
                     onChange={(e) => setNewResource(e.target.value)}
                     placeholder="Add resource or material..."
-                    className="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     onKeyPress={(e) => e.key === 'Enter' && addResource()}
                   />
                   <button
@@ -333,7 +333,7 @@ export function LessonDetailsModal({
                 value={details.homework || ""}
                 onChange={(e) => setDetails(prev => ({ ...prev, homework: e.target.value }))}
                 placeholder="Enter homework assignment..."
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 rows={3}
               />
             </div>
@@ -347,7 +347,7 @@ export function LessonDetailsModal({
                 value={details.teacherNotes || ""}
                 onChange={(e) => setDetails(prev => ({ ...prev, teacherNotes: e.target.value }))}
                 placeholder="Add notes about the lesson, student progress, or observations..."
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                 rows={4}
               />
             </div>

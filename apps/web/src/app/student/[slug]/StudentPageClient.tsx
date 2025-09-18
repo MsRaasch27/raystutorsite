@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { FlashcardDeck } from "../../../components/FlashcardDeck";
 import { PricingModal, PricingOption } from "../../../components/PricingModal";
 import { CEFRLevels } from "../../../components/CEFRLevels";
@@ -27,7 +28,6 @@ type User = {
   goals?: string | null;
   timezone?: string | null;
   billing?: { active?: boolean } | null;
-  vocabularySheetId?: string | null;
   lessonsLibrarySheetId?: string | null; // For teacher reference only
   cefrLevels?: {
     understanding?: string;
@@ -621,19 +621,15 @@ export function StudentPageClient({
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-800">🃏 My Flashcard Deck</h3>
-                {user.vocabularySheetId && (
-                  <a
-                    href={`https://docs.google.com/spreadsheets/d/${user.vocabularySheetId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-sm flex items-center gap-2"
-                  >
-                    📊 Edit Vocabulary Sheet
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
-                )}
+                <Link
+                  href={`/student/${encodeURIComponent(user.id)}/vocabulary`}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-sm flex items-center gap-2"
+                >
+                  📚 Manage Vocabulary
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </Link>
               </div>
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-6 border-2 border-purple-200">
                 <FlashcardDeck userId={user.id} />

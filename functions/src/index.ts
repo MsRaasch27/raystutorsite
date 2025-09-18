@@ -582,246 +582,111 @@ apiRouter.post(
 
       const now = new Date();
 
-      // Create a copy of the template vocabulary spreadsheet for the new user
-      let vocabularySheetId = null;
+      // Create initial vocabulary in Firestore instead of Google Sheets
       try {
-        // Use robust authentication with OAuth fallback to service account
+        console.log(`Creating initial vocabulary for user ${userId} with native language: ${natLang}`);
+
+        // Sample English vocabulary words
+        const sampleVocabulary = [
+          { english: "Hello", example: "Hello, how are you?" },
+          { english: "Goodbye", example: "Goodbye, see you later!" },
+          { english: "Thank you", example: "Thank you for your help." },
+          { english: "Please", example: "Please come in." },
+          { english: "Sorry", example: "I'm sorry for the mistake." },
+        ];
+
+        // Map language names to language codes
+        const languageCodeMap: Record<string, string> = {
+          "Spanish": "es",
+          "French": "fr",
+          "German": "de",
+          "Italian": "it",
+          "Portuguese": "pt",
+          "Russian": "ru",
+          "Japanese": "ja",
+          "Korean": "ko",
+          "Chinese": "zh",
+          "Arabic": "ar",
+          "Hindi": "hi",
+          "Thai": "th",
+          "Vietnamese": "vi",
+          "Indonesian": "id",
+          "Dutch": "nl",
+          "Swedish": "sv",
+          "Norwegian": "no",
+          "Danish": "da",
+          "Finnish": "fi",
+          "Polish": "pl",
+          "Czech": "cs",
+          "Hungarian": "hu",
+          "Turkish": "tr",
+          "Greek": "el",
+          "Hebrew": "he",
+          "Persian": "fa",
+          "Urdu": "ur",
+          "Bengali": "bn",
+          "Tamil": "ta",
+          "Telugu": "te",
+          "Marathi": "mr",
+          "Gujarati": "gu",
+          "Kannada": "kn",
+          "Malayalam": "ml",
+          "Punjabi": "pa",
+        };
+
+        const targetLanguage = natLang ? (languageCodeMap[natLang] || "es") : "es";
+        console.log(`Using target language code: ${targetLanguage} for native language: ${natLang}`);
+
+        // Get Google Translate API client for translations
         const authClient = await getRobustGoogleClient([
-          "https://www.googleapis.com/auth/spreadsheets",
-          "https://www.googleapis.com/auth/drive",
           "https://www.googleapis.com/auth/cloud-translation",
-          "https://www.googleapis.com/auth/userinfo.profile",
-          "https://www.googleapis.com/auth/userinfo.email",
         ]);
+        const translate = google.translate({ version: "v2", auth: authClient });
 
-        const drive = google.drive({ version: "v3", auth: authClient });
-        const sheets = google.sheets({ version: "v4", auth: authClient });
+        // Create vocabulary documents in Firestore
+        const vocabularyPromises = sampleVocabulary.map(async (vocab, index) => {
+          let nativeTranslation = "";
 
-        // Template spreadsheet ID from environment variable
-        let templateSheetId = S_TEMPLATE_SHEET_ID.value();
+          try {
+            console.log(`Translating "${vocab.english}" to ${targetLanguage}...`);
 
-        // First, check if we can access the template
-        try {
-          await drive.files.get({ fileId: templateSheetId });
-        } catch (templateError) {
-          console.error(`Cannot access template spreadsheet ${templateSheetId}:`, templateError);
-
-          // If template is not accessible, create a new one
-          console.log("Creating new template spreadsheet...");
-          const newTemplate = await sheets.spreadsheets.create({
-            requestBody: {
-              properties: {
-                title: "Vocabulary Template - English to Native Language",
-              },
-              sheets: [
-                {
-                  properties: {
-                    title: "Vocabulary",
-                    gridProperties: {
-                      rowCount: 100,
-                      columnCount: 4,
-                    },
-                  },
-                },
-              ],
-            },
-          });
-
-          if (newTemplate.data.spreadsheetId) {
-            templateSheetId = newTemplate.data.spreadsheetId;
-
-            // Add sample data to the template
-            await sheets.spreadsheets.values.update({
-              spreadsheetId: templateSheetId,
-              range: "A1:D1",
-              valueInputOption: "RAW",
+            const translationResponse = await translate.translations.translate({
               requestBody: {
-                values: [["English", "Native Language", "Part of Speech", "Example"]],
+                q: [vocab.english],
+                target: targetLanguage,
+                source: "en",
               },
             });
 
-            // Add some sample vocabulary words
-            await sheets.spreadsheets.values.update({
-              spreadsheetId: templateSheetId,
-              range: "A2:D6",
-              valueInputOption: "RAW",
-              requestBody: {
-                values: [
-                  ["Hello", "", "interjection", "Hello, how are you?"],
-                  ["Goodbye", "", "interjection", "Goodbye, see you later!"],
-                  ["Thank you", "", "phrase", "Thank you for your help."],
-                  ["Please", "", "adverb", "Please come in."],
-                  ["Sorry", "", "adjective", "I'm sorry for the mistake."],
-                ],
-              },
-            });
-
-            console.log(`Created new template spreadsheet: ${templateSheetId}`);
-          } else {
-            throw new Error("Failed to create new template spreadsheet");
+            nativeTranslation = (translationResponse.data as any).data?.translations?.[0]?.translatedText || "";
+            console.log(`Translated "${vocab.english}" to "${nativeTranslation}"`);
+          } catch (translationError) {
+            console.error(`Error translating "${vocab.english}":`, translationError);
+            nativeTranslation = ""; // Empty string if translation fails
           }
-        }
 
-        // Create a copy of the template in the teacher's account (MsRaasch27@gmail.com)
-        const copyResponse = await drive.files.copy({
-          fileId: templateSheetId,
-          requestBody: {
-            name: `${name || userId}'s Vocabulary Sheet`,
-            // The copy will be created in the same account as the template (MsRaasch27@gmail.com)
-          },
+          // Create vocabulary document in Firestore
+          const vocabularyData = {
+            english: vocab.english,
+            [natLang || "nativeLanguage"]: nativeTranslation,
+            example: vocab.example,
+            createdAt: now,
+            updatedAt: now,
+          };
+
+          return db.collection("users")
+            .doc(userId)
+            .collection("vocabulary")
+            .doc(`vocab_${index + 1}`)
+            .set(vocabularyData);
         });
 
-        if (copyResponse.data.id) {
-          vocabularySheetId = copyResponse.data.id;
-
-          // Update the "Native Language" column header to the user's actual native language
-          if (natLang) {
-            try {
-              await sheets.spreadsheets.values.update({
-                spreadsheetId: vocabularySheetId,
-                range: "B1", // Assuming "Native Language" is in cell B1
-                valueInputOption: "RAW",
-                requestBody: {
-                  values: [[natLang]],
-                },
-              });
-              console.log(`Updated native language header to "${natLang}" for user ${userId}`);
-
-              // Get the English words from column A and translate them to the user's native language
-              const englishWordsResponse = await sheets.spreadsheets.values.get({
-                spreadsheetId: vocabularySheetId,
-                range: "A:A", // Get all values from column A
-              });
-
-              const englishWords = englishWordsResponse.data.values || [];
-              if (englishWords.length > 1) { // Skip header row
-                // Map language names to language codes
-                const languageCodeMap: Record<string, string> = {
-                  "Spanish": "es",
-                  "French": "fr",
-                  "German": "de",
-                  "Italian": "it",
-                  "Portuguese": "pt",
-                  "Russian": "ru",
-                  "Japanese": "ja",
-                  "Korean": "ko",
-                  "Chinese": "zh",
-                  "Arabic": "ar",
-                  "Hindi": "hi",
-                  "Thai": "th",
-                  "Vietnamese": "vi",
-                  "Indonesian": "id",
-                  "Dutch": "nl",
-                  "Swedish": "sv",
-                  "Norwegian": "no",
-                  "Danish": "da",
-                  "Finnish": "fi",
-                  "Polish": "pl",
-                  "Czech": "cs",
-                  "Hungarian": "hu",
-                  "Turkish": "tr",
-                  "Greek": "el",
-                  "Hebrew": "he",
-                  "Persian": "fa",
-                  "Urdu": "ur",
-                  "Bengali": "bn",
-                  "Tamil": "ta",
-                  "Telugu": "te",
-                  "Marathi": "mr",
-                  "Gujarati": "gu",
-                  "Kannada": "kn",
-                  "Malayalam": "ml",
-                  "Punjabi": "pa",
-                };
-
-                const targetLanguage = languageCodeMap[natLang] || "es"; // Default to Spanish if not found
-                console.log(`Using target language code: ${targetLanguage} for native language: ${natLang}`);
-
-                // Use Google Translate API through googleapis
-                const translate = google.translate({ version: "v2", auth: authClient });
-
-                // Translate each English word/phrase
-                const translations: string[][] = [];
-                for (let i = 1; i < englishWords.length; i++) { // Start from index 1 to skip header
-                  const englishWord = englishWords[i][0];
-                  if (englishWord && englishWord.trim()) {
-                    try {
-                      console.log(`Attempting to translate "${englishWord}" to ${targetLanguage}...`);
-
-                      const translationResponse = await translate.translations.translate({
-                        requestBody: {
-                          q: [englishWord],
-                          target: targetLanguage,
-                          source: "en",
-                        },
-                      });
-
-                      console.log(`Translation response for "${englishWord}":`, JSON.stringify(translationResponse.data, null, 2));
-
-                      const translation = (translationResponse.data as any).data?.translations?.[0]?.translatedText || "";
-                      translations.push([translation]);
-                      console.log(`Translated "${englishWord}" to "${translation}" for user ${userId}`);
-                    } catch (translationError) {
-                      console.error(`Error translating "${englishWord}":`, translationError);
-                      console.error("Translation error details:", JSON.stringify(translationError, null, 2));
-                      translations.push([""]); // Empty string if translation fails
-                    }
-                  } else {
-                    translations.push([""]); // Empty string for empty cells
-                  }
-                }
-
-                // Update column B with translations
-                if (translations.length > 0) {
-                  await sheets.spreadsheets.values.update({
-                    spreadsheetId: vocabularySheetId,
-                    range: `B2:B${translations.length + 1}`, // Start from B2 to skip header
-                    valueInputOption: "RAW",
-                    requestBody: {
-                      values: translations,
-                    },
-                  });
-                  console.log(`Added ${translations.length} translations to vocabulary sheet for user ${userId}`);
-                }
-              }
-            } catch (updateError) {
-              console.error("Error updating native language header:", updateError);
-              // Don't fail the whole process if header update fails
-            }
-          }
-
-          // Share the copied spreadsheet with the user
-          await drive.permissions.create({
-            fileId: vocabularySheetId,
-            requestBody: {
-              role: "writer",
-              type: "user",
-              emailAddress: userId,
-            },
-          });
-
-          console.log(`Created vocabulary sheet ${vocabularySheetId} for user ${userId}`);
-        }
+        await Promise.all(vocabularyPromises);
+        console.log(`Created ${sampleVocabulary.length} vocabulary items for user ${userId}`);
       } catch (error) {
-        console.error("Error creating vocabulary sheet:", error);
-
-        // Log more detailed error information
-        if (error && typeof error === "object" && "code" in error) {
-          console.error("Error code:", error.code);
-          console.error("Error details:", error);
-        }
-
-        // Log the failure for monitoring
-        await db.collection("sheet_creation_failures").add({
-          userId: userId,
-          sheetType: "vocabulary",
-          error: String(error),
-          errorCode: (error as any)?.code || null,
-          timestamp: new Date(),
-        });
-
-        // Don't fail the user creation if sheet creation fails
-        console.log(`Continuing user creation without vocabulary sheet for ${userId}`);
+        console.error("Error creating vocabulary in Firestore:", error);
+        // Don't fail the user creation if vocabulary creation fails
+        console.log(`Continuing user creation without vocabulary for ${userId}`);
       }
 
       // Create a copy of the Master English Lessons Library spreadsheet for the new user (teacher use only)
@@ -899,7 +764,6 @@ apiRouter.post(
           preferredtime: preferredtime,
           timezone: timezone,
           photo: photo,
-          vocabularySheetId: vocabularySheetId,
           lessonsLibrarySheetId: lessonsLibrarySheetId, // For teacher reference only
           updatedAt: now,
           createdAt: now,
@@ -907,7 +771,7 @@ apiRouter.post(
         { merge: true }
       );
 
-      return res.status(200).json({ ok: true, userId, vocabularySheetId, lessonsLibrarySheetId });
+      return res.status(200).json({ ok: true, userId, lessonsLibrarySheetId });
     } catch (err: unknown) {
       console.error("form-submission error", err);
       return res.status(500).json({ error: "internal" });
@@ -1038,88 +902,308 @@ apiRouter.get(
     }
   });
 
-// Get vocabulary words from Google Sheets
+// Get vocabulary words from Firestore
 apiRouter.get(
   "/vocabulary",
   async (req: Request, res: Response) => {
     try {
-      // Check if a specific user ID is provided
       const userId = req.query.userId as string;
-      let sheetId: string | undefined;
 
-      try {
-        sheetId = process.env.GOOGLE_VOCAB_SHEET_ID || S_VOCAB_SHEET_ID.value();
-      } catch (err) {
-        console.warn("Default vocabulary sheet not configured:", err);
+      if (!userId) {
+        return res.status(400).json({ error: "userId is required" });
       }
 
-      // If a user ID is provided, check if they have a custom vocabulary sheet
-      if (userId) {
-        try {
-          const userDoc = await db.collection("users").doc(userId.toLowerCase()).get();
-          if (userDoc.exists) {
-            const userData = userDoc.data();
-            // Check if user has a custom vocabulary sheet ID
-            if (userData?.vocabularySheetId) {
-              sheetId = userData.vocabularySheetId;
-            }
-          }
-        } catch (err) {
-          console.warn("Failed to fetch user vocabulary sheet, using default:", err);
-        }
-      }
+      const normalizedUserId = userId.toLowerCase();
 
-      if (!sheetId) {
-        return res.status(500).json({ error: "No vocabulary sheet configured. Please set up a default sheet or configure a personal vocabulary sheet." });
-      }
+      // Get user's vocabulary from Firestore
+      const vocabularySnap = await db.collection("users")
+        .doc(normalizedUserId)
+        .collection("vocabulary")
+        .orderBy("createdAt", "asc")
+        .get();
 
-      // Prefer OAuth (acts as MsRaasch27) when available; fallback to service account
-      let sheets = null as ReturnType<typeof google.sheets> | null;
-      let authClient = null as any;
-
-      // Try to get valid OAuth client with token refresh
-      const oauth2Client = await getValidOAuth2Client();
-      if (oauth2Client) {
-        authClient = oauth2Client;
-        sheets = google.sheets({ version: "v4", auth: oauth2Client });
-      }
-
-      if (!sheets) {
-        authClient = await google.auth.getClient({
-          scopes: [
-            "https://www.googleapis.com/auth/spreadsheets.readonly",
-            "https://www.googleapis.com/auth/drive",
-            "https://www.googleapis.com/auth/cloud-translation",
-            "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/userinfo.email",
-          ],
-        });
-        sheets = google.sheets({ version: "v4", auth: authClient });
-      }
-
-      // Fetch data from the sheet (assuming columns: English | Thai | Part of Speech | Example)
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: sheetId,
-        range: "A:D", // Adjust range based on your sheet structure
-      });
-
-      const rows = response.data.values || [];
-      if (rows.length === 0) {
-        return res.json({ words: [] });
-      }
-
-      // Skip header row and map to vocabulary objects
-      const words = rows.slice(1).map((row, index) => ({
-        id: `word_${index + 1}`,
-        english: row[0] || "",
-        thai: row[1] || "",
-        partOfSpeech: row[2] || "",
-        example: row[3] || "",
+      const words = vocabularySnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
       }));
 
       return res.json({ words });
     } catch (err: unknown) {
       console.error("get vocabulary error", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Get user's vocabulary (alternative endpoint)
+apiRouter.get(
+  "/users/:id/vocabulary",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+
+      // Get user's vocabulary from Firestore
+      const vocabularySnap = await db.collection("users")
+        .doc(id)
+        .collection("vocabulary")
+        .orderBy("createdAt", "asc")
+        .get();
+
+      const words = vocabularySnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      return res.json({ words });
+    } catch (err: unknown) {
+      console.error("get user vocabulary error", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Add new vocabulary word
+apiRouter.post(
+  "/users/:id/vocabulary",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const { english, example } = req.body || {};
+
+      if (!english) {
+        return res.status(400).json({ error: "English word is required" });
+      }
+
+      // Get user data to find native language
+      const userSnap = await db.collection("users").doc(id).get();
+      if (!userSnap.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userData = userSnap.data();
+      const nativeLanguage = userData?.natLang;
+
+      if (!nativeLanguage) {
+        return res.status(400).json({ error: "User's native language not found" });
+      }
+
+      // Map language names to language codes
+      const languageCodeMap: Record<string, string> = {
+        "Spanish": "es",
+        "French": "fr",
+        "German": "de",
+        "Italian": "it",
+        "Portuguese": "pt",
+        "Russian": "ru",
+        "Japanese": "ja",
+        "Korean": "ko",
+        "Chinese": "zh",
+        "Arabic": "ar",
+        "Hindi": "hi",
+        "Thai": "th",
+        "Vietnamese": "vi",
+        "Indonesian": "id",
+        "Dutch": "nl",
+        "Swedish": "sv",
+        "Norwegian": "no",
+        "Danish": "da",
+        "Finnish": "fi",
+        "Polish": "pl",
+        "Czech": "cs",
+        "Hungarian": "hu",
+        "Turkish": "tr",
+        "Greek": "el",
+        "Hebrew": "he",
+        "Persian": "fa",
+        "Urdu": "ur",
+        "Bengali": "bn",
+        "Tamil": "ta",
+        "Telugu": "te",
+        "Marathi": "mr",
+        "Gujarati": "gu",
+        "Kannada": "kn",
+        "Malayalam": "ml",
+        "Punjabi": "pa",
+      };
+
+      const targetLanguage = languageCodeMap[nativeLanguage] || "es";
+      let nativeTranslation = "";
+
+      // Translate the English word to native language
+      try {
+        const authClient = await getRobustGoogleClient([
+          "https://www.googleapis.com/auth/cloud-translation",
+        ]);
+        const translate = google.translate({ version: "v2", auth: authClient });
+
+        const translationResponse = await translate.translations.translate({
+          requestBody: {
+            q: [english.trim()],
+            target: targetLanguage,
+            source: "en",
+          },
+        });
+
+        nativeTranslation = (translationResponse.data as any).data?.translations?.[0]?.translatedText || "";
+        console.log(`Translated "${english}" to "${nativeTranslation}" in ${nativeLanguage}`);
+      } catch (translationError) {
+        console.error(`Error translating "${english}":`, translationError);
+        nativeTranslation = ""; // Empty string if translation fails
+      }
+
+      const now = new Date();
+      const vocabularyData = {
+        english: english.trim(),
+        [nativeLanguage]: nativeTranslation,
+        example: example || "",
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // Add vocabulary document to Firestore
+      const docRef = await db.collection("users")
+        .doc(id)
+        .collection("vocabulary")
+        .add(vocabularyData);
+
+      return res.json({
+        id: docRef.id,
+        ...vocabularyData,
+      });
+    } catch (err: unknown) {
+      console.error("add vocabulary error", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Update vocabulary word
+apiRouter.put(
+  "/users/:id/vocabulary/:wordId",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const wordId = req.params.wordId;
+      const { english, example } = req.body || {};
+
+      if (!english) {
+        return res.status(400).json({ error: "English word is required" });
+      }
+
+      // Get user data to find native language
+      const userSnap = await db.collection("users").doc(id).get();
+      if (!userSnap.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userData = userSnap.data();
+      const nativeLanguage = userData?.natLang;
+
+      if (!nativeLanguage) {
+        return res.status(400).json({ error: "User's native language not found" });
+      }
+
+      // Map language names to language codes
+      const languageCodeMap: Record<string, string> = {
+        "Spanish": "es",
+        "French": "fr",
+        "German": "de",
+        "Italian": "it",
+        "Portuguese": "pt",
+        "Russian": "ru",
+        "Japanese": "ja",
+        "Korean": "ko",
+        "Chinese": "zh",
+        "Arabic": "ar",
+        "Hindi": "hi",
+        "Thai": "th",
+        "Vietnamese": "vi",
+        "Indonesian": "id",
+        "Dutch": "nl",
+        "Swedish": "sv",
+        "Norwegian": "no",
+        "Danish": "da",
+        "Finnish": "fi",
+        "Polish": "pl",
+        "Czech": "cs",
+        "Hungarian": "hu",
+        "Turkish": "tr",
+        "Greek": "el",
+        "Hebrew": "he",
+        "Persian": "fa",
+        "Urdu": "ur",
+        "Bengali": "bn",
+        "Tamil": "ta",
+        "Telugu": "te",
+        "Marathi": "mr",
+        "Gujarati": "gu",
+        "Kannada": "kn",
+        "Malayalam": "ml",
+        "Punjabi": "pa",
+      };
+
+      const targetLanguage = languageCodeMap[nativeLanguage] || "es";
+      let nativeTranslation = "";
+
+      // Translate the English word to native language
+      try {
+        const authClient = await getRobustGoogleClient([
+          "https://www.googleapis.com/auth/cloud-translation",
+        ]);
+        const translate = google.translate({ version: "v2", auth: authClient });
+
+        const translationResponse = await translate.translations.translate({
+          requestBody: {
+            q: [english.trim()],
+            target: targetLanguage,
+            source: "en",
+          },
+        });
+
+        nativeTranslation = (translationResponse.data as any).data?.translations?.[0]?.translatedText || "";
+        console.log(`Translated "${english}" to "${nativeTranslation}" in ${nativeLanguage}`);
+      } catch (translationError) {
+        console.error(`Error translating "${english}":`, translationError);
+        nativeTranslation = ""; // Empty string if translation fails
+      }
+
+      const now = new Date();
+      const updateData: any = {
+        english: english.trim(),
+        [nativeLanguage]: nativeTranslation,
+        example: example || "",
+        updatedAt: now,
+      };
+
+      // Update vocabulary document in Firestore
+      await db.collection("users")
+        .doc(id)
+        .collection("vocabulary")
+        .doc(wordId)
+        .update(updateData);
+
+      return res.json({ ok: true });
+    } catch (err: unknown) {
+      console.error("update vocabulary error", err);
+      return res.status(500).json({ error: "internal" });
+    }
+  });
+
+// Delete vocabulary word
+apiRouter.delete(
+  "/users/:id/vocabulary/:wordId",
+  async (req: Request, res: Response) => {
+    try {
+      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+      const wordId = req.params.wordId;
+
+      // Delete vocabulary document from Firestore
+      await db.collection("users")
+        .doc(id)
+        .collection("vocabulary")
+        .doc(wordId)
+        .delete();
+
+      return res.json({ ok: true });
+    } catch (err: unknown) {
+      console.error("delete vocabulary error", err);
       return res.status(500).json({ error: "internal" });
     }
   });
@@ -1193,35 +1277,6 @@ apiRouter.post(
     }
   });
 
-// Update user's vocabulary sheet ID
-apiRouter.post(
-  "/users/:id/vocabulary-sheet",
-  async (req: Request, res: Response) => {
-    try {
-      const id = decodeURIComponent(req.params.id).trim().toLowerCase();
-      const { vocabularySheetId } = req.body || {};
-
-      if (!vocabularySheetId) {
-        return res.status(400).json({ error: "Vocabulary sheet ID is required" });
-      }
-
-      // Validate that the sheet ID format looks correct (basic validation)
-      if (!vocabularySheetId.match(/^[a-zA-Z0-9-_]+$/)) {
-        return res.status(400).json({ error: "Invalid vocabulary sheet ID format" });
-      }
-
-      const now = new Date();
-      await db.collection("users").doc(id).update({
-        vocabularySheetId,
-        updatedAt: now,
-      });
-
-      return res.json({ ok: true, vocabularySheetId });
-    } catch (err: unknown) {
-      console.error("update vocabulary sheet error", err);
-      return res.status(500).json({ error: "internal" });
-    }
-  });
 
 // Update flashcard progress (rate difficulty)
 apiRouter.post(
@@ -1534,7 +1589,7 @@ apiRouter.get("/debug/user/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Add vocabulary from completed lesson to student's vocabulary sheet
+// Add vocabulary from completed lesson to student's Firestore vocabulary
 apiRouter.post("/lessons/:lessonId/add-vocabulary", async (req: Request, res: Response) => {
   try {
     const lessonId = req.params.lessonId;
@@ -1566,164 +1621,116 @@ apiRouter.post("/lessons/:lessonId/add-vocabulary", async (req: Request, res: Re
       return res.status(404).json({ error: "Student ID not found for lesson" });
     }
 
-    // Get student data to find vocabulary sheet ID and native language
+    // Get student data to find native language
     const studentSnap = await db.collection("users").doc(studentId).get();
     if (!studentSnap.exists) {
       return res.status(404).json({ error: "Student not found" });
     }
 
     const studentData = studentSnap.data();
-    const vocabularySheetId = studentData?.vocabularySheetId;
     const nativeLanguage = studentData?.natLang;
 
-    if (!vocabularySheetId) {
-      return res.status(404).json({ error: "Student vocabulary sheet not found" });
-    }
+    console.log(`Adding ${vocabulary.length} vocabulary words to Firestore for student ${studentId}`);
 
-    console.log(`Adding ${vocabulary.length} vocabulary words to sheet ${vocabularySheetId} for student ${studentId}`);
+    // Map language names to language codes
+    const languageCodeMap: Record<string, string> = {
+      "Spanish": "es",
+      "French": "fr",
+      "German": "de",
+      "Italian": "it",
+      "Portuguese": "pt",
+      "Russian": "ru",
+      "Japanese": "ja",
+      "Korean": "ko",
+      "Chinese": "zh",
+      "Arabic": "ar",
+      "Hindi": "hi",
+      "Thai": "th",
+      "Vietnamese": "vi",
+      "Indonesian": "id",
+      "Dutch": "nl",
+      "Swedish": "sv",
+      "Norwegian": "no",
+      "Danish": "da",
+      "Finnish": "fi",
+      "Polish": "pl",
+      "Czech": "cs",
+      "Hungarian": "hu",
+      "Turkish": "tr",
+      "Greek": "el",
+      "Hebrew": "he",
+      "Persian": "fa",
+      "Urdu": "ur",
+      "Bengali": "bn",
+      "Tamil": "ta",
+      "Telugu": "te",
+      "Marathi": "mr",
+      "Gujarati": "gu",
+      "Kannada": "kn",
+      "Malayalam": "ml",
+      "Punjabi": "pa",
+    };
 
-    // Get Google Sheets API client
-    let sheets = null as ReturnType<typeof google.sheets> | null;
-    let authClient: any = null;
+    const targetLanguage = nativeLanguage ? (languageCodeMap[nativeLanguage] || "es") : "es";
+    console.log(`Using target language code: ${targetLanguage} for native language: ${nativeLanguage}`);
 
-    // Try to get valid OAuth client with token refresh
-    const oauth2Client = await getValidOAuth2Client();
-    if (oauth2Client) {
-      authClient = oauth2Client;
-      sheets = google.sheets({ version: "v4", auth: oauth2Client });
-    }
+    // Get Google Translate API client for translations
+    const authClient = await getRobustGoogleClient([
+      "https://www.googleapis.com/auth/cloud-translation",
+    ]);
+    const translate = google.translate({ version: "v2", auth: authClient });
 
-    if (!sheets) {
-      authClient = await google.auth.getClient({
-        scopes: [
-          "https://www.googleapis.com/auth/spreadsheets",
-          "https://www.googleapis.com/auth/cloud-translation",
-        ],
-      });
-      sheets = google.sheets({ version: "v4", auth: authClient });
-    }
+    const now = new Date();
+    let translatedCount = 0;
 
-    // Get current data to find the next empty row
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: vocabularySheetId,
-      range: "A:A", // Get all values from column A
-    });
+    // Create vocabulary documents in Firestore
+    const vocabularyPromises = vocabulary.map(async (word: string) => {
+      let nativeTranslation = "";
 
-    const currentRows = response.data.values || [];
-    const nextRowIndex = currentRows.length + 1; // Next empty row
-
-    // Prepare vocabulary data (English words in column A)
-    const vocabularyData = vocabulary.map((word: string) => [word.trim()]);
-
-    // Add vocabulary to the sheet
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: vocabularySheetId,
-      range: `A${nextRowIndex}:A${nextRowIndex + vocabulary.length - 1}`,
-      valueInputOption: "RAW",
-      requestBody: {
-        values: vocabularyData,
-      },
-    });
-
-    console.log(`Added ${vocabulary.length} vocabulary words to rows ${nextRowIndex}-${nextRowIndex + vocabulary.length - 1}`);
-
-    // Translate the new vocabulary if native language is available
-    if (nativeLanguage) {
       try {
-        // Map language names to language codes
-        const languageCodeMap: Record<string, string> = {
-          "Spanish": "es",
-          "French": "fr",
-          "German": "de",
-          "Italian": "it",
-          "Portuguese": "pt",
-          "Russian": "ru",
-          "Japanese": "ja",
-          "Korean": "ko",
-          "Chinese": "zh",
-          "Arabic": "ar",
-          "Hindi": "hi",
-          "Thai": "th",
-          "Vietnamese": "vi",
-          "Indonesian": "id",
-          "Dutch": "nl",
-          "Swedish": "sv",
-          "Norwegian": "no",
-          "Danish": "da",
-          "Finnish": "fi",
-          "Polish": "pl",
-          "Czech": "cs",
-          "Hungarian": "hu",
-          "Turkish": "tr",
-          "Greek": "el",
-          "Hebrew": "he",
-          "Persian": "fa",
-          "Urdu": "ur",
-          "Bengali": "bn",
-          "Tamil": "ta",
-          "Telugu": "te",
-          "Marathi": "mr",
-          "Gujarati": "gu",
-          "Kannada": "kn",
-          "Malayalam": "ml",
-          "Punjabi": "pa",
-        };
+        console.log(`Translating "${word}" to ${targetLanguage}...`);
 
-        const targetLanguage = languageCodeMap[nativeLanguage] || "es";
-        console.log(`Translating vocabulary to ${targetLanguage} for native language: ${nativeLanguage}`);
+        const translationResponse = await translate.translations.translate({
+          requestBody: {
+            q: [word.trim()],
+            target: targetLanguage,
+            source: "en",
+          },
+        });
 
-        // Use Google Translate API
-        const translate = google.translate({ version: "v2", auth: authClient });
-
-        // Translate each vocabulary word
-        const translations: string[][] = [];
-        for (const word of vocabulary) {
-          try {
-            console.log(`Translating "${word}" to ${targetLanguage}...`);
-
-            const translationResponse = await translate.translations.translate({
-              requestBody: {
-                q: [word.trim()],
-                target: targetLanguage,
-                source: "en",
-              },
-            });
-
-            const translation = (translationResponse.data as any).data?.translations?.[0]?.translatedText || "";
-            translations.push([translation]);
-            console.log(`Translated "${word}" to "${translation}"`);
-          } catch (translationError) {
-            console.error(`Error translating "${word}":`, translationError);
-            translations.push([""]); // Empty string if translation fails
-          }
-        }
-
-        // Update column B with translations
-        if (translations.length > 0) {
-          await sheets.spreadsheets.values.update({
-            spreadsheetId: vocabularySheetId,
-            range: `B${nextRowIndex}:B${nextRowIndex + translations.length - 1}`,
-            valueInputOption: "RAW",
-            requestBody: {
-              values: translations,
-            },
-          });
-          console.log(`Added ${translations.length} translations to column B`);
-        }
+        nativeTranslation = (translationResponse.data as any).data?.translations?.[0]?.translatedText || "";
+        console.log(`Translated "${word}" to "${nativeTranslation}"`);
+        translatedCount++;
       } catch (translationError) {
-        console.error("Error translating vocabulary:", translationError);
-        // Don't fail the entire operation if translation fails
+        console.error(`Error translating "${word}":`, translationError);
+        nativeTranslation = ""; // Empty string if translation fails
       }
-    }
+
+      // Create vocabulary document in Firestore
+      const vocabularyData = {
+        english: word.trim(),
+        [nativeLanguage || "nativeLanguage"]: nativeTranslation,
+        example: "", // No example provided from lesson
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      return db.collection("users")
+        .doc(studentId)
+        .collection("vocabulary")
+        .add(vocabularyData);
+    });
+
+    await Promise.all(vocabularyPromises);
+    console.log(`Added ${vocabulary.length} vocabulary items to Firestore for student ${studentId}`);
 
     return res.json({
       success: true,
       lessonId,
       studentId,
-      vocabularySheetId,
       added: vocabulary.length,
-      translated: nativeLanguage ? vocabulary.length : 0,
-      message: `Successfully added ${vocabulary.length} vocabulary words to student's sheet`,
+      translated: translatedCount,
+      message: `Successfully added ${vocabulary.length} vocabulary words to student's Firestore collection`,
     });
   } catch (err) {
     console.error("Add vocabulary error:", err);
