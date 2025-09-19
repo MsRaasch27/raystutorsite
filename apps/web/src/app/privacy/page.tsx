@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">Overview</h2>
               <p className="text-gray-700 mb-4">
                 Ray&apos;s Tutor Site is a web application that helps manage English language tutoring services. 
-                This privacy policy explains how we handle your information when you use our Google Drive/Sheets integration.
+                This privacy policy explains how we handle your information when you use our tutoring platform.
               </p>
             </section>
 
@@ -26,12 +26,16 @@ export default function PrivacyPolicy() {
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">Information We Collect</h2>
               <ul className="list-disc pl-6 text-gray-700 space-y-2">
                 <li>
-                  <strong>Teacher&apos;s Google Account:</strong> Our application is authorized to access the Teacher/Site Author&apos;s Google Drive 
-                  and Google Sheets to create and manage vocabulary spreadsheets for students.
+                  <strong>Student Information:</strong> We collect basic information from students 
+                  (name, email, native language, age, goals, preferences) to create personalized learning experiences.
                 </li>
                 <li>
-                  <strong>Student Information:</strong> We collect basic information from students 
-                  (name, email, native language) to create personalized vocabulary sheets.
+                  <strong>Learning Data:</strong> We store vocabulary words, lesson progress, and learning materials 
+                  in our secure database to track student progress and customize lessons.
+                </li>
+                <li>
+                  <strong>Assessment Data:</strong> We collect CEFR level assessments and learning progress data 
+                  to provide appropriate lesson content.
                 </li>
                 <li>
                   <strong>Usage Data:</strong> We may collect basic usage information to improve our services.
@@ -43,16 +47,17 @@ export default function PrivacyPolicy() {
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">How We Use Your Information</h2>
               <div className="text-gray-700">
                 <p className="mb-4">
-                  <strong>Teacher&apos;s Google Drive/Sheets Access:</strong> We use the Teacher/Site Author&apos;s Google Drive access to:
+                  <strong>Learning Management:</strong> We use your information to:
                 </p>
                 <ul className="list-disc pl-6 space-y-2 mb-4">
-                  <li>Copy template vocabulary spreadsheets from the Teacher/Site Author&apos;s Drive</li>
-                  <li>Create personalized vocabulary sheets for students in the Teacher/Site Author&apos;s Drive</li>
-                  <li>Update spreadsheet content with translations</li>
-                  <li>Share spreadsheets with students via Google Drive sharing</li>
+                  <li>Create personalized vocabulary collections with translations in your native language</li>
+                  <li>Generate customized lesson plans based on your CEFR level and learning goals</li>
+                  <li>Track your learning progress and adapt lesson difficulty accordingly</li>
+                  <li>Provide flashcards and practice materials tailored to your needs</li>
+                  <li>Schedule and manage tutoring sessions</li>
                 </ul>
                 <p>
-                  <strong>Student Data:</strong> We use student information to create personalized learning materials.
+                  <strong>Service Improvement:</strong> We use aggregated, anonymized data to improve our teaching methods and platform features.
                 </p>
               </div>
             </section>
@@ -61,15 +66,17 @@ export default function PrivacyPolicy() {
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">Information Sharing</h2>
               <ul className="list-disc pl-6 text-gray-700 space-y-2">
                 <li>
-                  <strong>Google Services:</strong> We share data with Google services (Drive, Sheets, Translate) 
-                  as necessary to provide our functionality, specifically within the Teacher/Site Author&apos;s Google account.
+                  <strong>Google Services:</strong> We use Google Translate API to provide vocabulary translations 
+                  and Google Calendar for lesson scheduling. We do not share your personal data with Google beyond 
+                  what is necessary for these specific services.
                 </li>
                 <li>
-                  <strong>Students:</strong> We share vocabulary spreadsheets with students via Google Drive sharing 
-                  from the Teacher/Site Author&apos;s account.
+                  <strong>Teacher Access:</strong> Your teacher has access to your learning progress, vocabulary, 
+                  and lesson data to provide personalized instruction and track your development.
                 </li>
                 <li>
-                  <strong>Third Parties:</strong> We do not sell, trade, or otherwise transfer your information to third parties.
+                  <strong>Third Parties:</strong> We do not sell, trade, or otherwise transfer your information to third parties 
+                  except as necessary to provide our services (e.g., Google Translate for vocabulary translations).
                 </li>
               </ul>
             </section>
@@ -77,18 +84,21 @@ export default function PrivacyPolicy() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">Data Security</h2>
               <ul className="list-disc pl-6 text-gray-700 space-y-2">
-                <li>We use Firebase&apos;s secure infrastructure to store data</li>
-                <li>Google OAuth 2.0 provides secure authentication</li>
-                <li>We only request the minimum permissions necessary</li>
+                <li>We use Firebase&apos;s secure cloud infrastructure to store and protect your data</li>
+                <li>Google OAuth 2.0 provides secure authentication for accessing your account</li>
+                <li>All data transmission is encrypted using industry-standard SSL/TLS protocols</li>
+                <li>We implement access controls to ensure only authorized personnel can access your data</li>
+                <li>We regularly review and update our security practices to protect your information</li>
               </ul>
             </section>
 
             <section className="mb-8">
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">Data Retention</h2>
               <ul className="list-disc pl-6 text-gray-700 space-y-2">
-                <li>Student data is retained as long as needed to provide tutoring services</li>
-                <li>Google Drive files are managed according to your Google account settings</li>
-                <li>You can revoke our access to your Google Drive at any time</li>
+                <li>Student data is retained as long as needed to provide tutoring services and track learning progress</li>
+                <li>Learning progress and vocabulary data is kept to maintain continuity in your education</li>
+                <li>You can request deletion of your data at any time by contacting us</li>
+                <li>We will delete your data within 30 days of receiving a deletion request, unless legal obligations require longer retention</li>
               </ul>
             </section>
 
@@ -96,13 +106,19 @@ export default function PrivacyPolicy() {
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">Your Rights</h2>
               <ul className="list-disc pl-6 text-gray-700 space-y-2">
                 <li>
-                  <strong>Revoke Access:</strong> The Teacher/Site Author can revoke our Google Drive access in their Google Account settings
+                  <strong>Access Your Data:</strong> You can view and download your learning data through our application
                 </li>
                 <li>
-                  <strong>Delete Data:</strong> Contact us to request deletion of your data
+                  <strong>Update Information:</strong> You can update your personal information and learning preferences through our application
                 </li>
                 <li>
-                  <strong>Update Information:</strong> You can update your information through our application
+                  <strong>Delete Data:</strong> Contact us to request deletion of your data and account
+                </li>
+                <li>
+                  <strong>Data Portability:</strong> You can request a copy of your data in a portable format
+                </li>
+                <li>
+                  <strong>Opt Out:</strong> You can opt out of certain data processing activities while maintaining access to core services
                 </li>
               </ul>
             </section>

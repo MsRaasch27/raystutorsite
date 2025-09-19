@@ -244,10 +244,10 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
         </div>
         
         {/* Progress Bar */}
-        <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+        <div className="w-full bg-gray-200 rounded-full h-2 mb-3 overflow-hidden">
           <div 
             className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${((currentCardIndex + 1) / dueCards.length) * 100}%` }}
+            style={{ width: `${Math.min(((currentCardIndex + 1) / dueCards.length) * 100, 100)}%` }}
           ></div>
         </div>
         

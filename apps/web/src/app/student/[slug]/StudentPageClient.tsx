@@ -119,11 +119,11 @@ export function StudentPageClient({
   assessments: Assessment[];
 }) {
   const [activeTab, setActiveTab] = useState<TabType>('practice');
-  const [checkingOut, setCheckingOut] = useState(false);
+  // const [checkingOut, setCheckingOut] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [preSelectPlan, setPreSelectPlan] = useState<string | undefined>(undefined);
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
-  const [loadingSessions, setLoadingSessions] = useState(true);
+  // const [loadingSessions, setLoadingSessions] = useState(true);
   const [lessonDetails, setLessonDetails] = useState<Record<string, LessonDetails>>({});
   const [loadingLessonDetails, setLoadingLessonDetails] = useState(false);
 
@@ -170,7 +170,7 @@ export function StudentPageClient({
   // Fetch session information
   const fetchSessionInfo = useCallback(async () => {
     try {
-      setLoadingSessions(true);
+      // setLoadingSessions(true);
       const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/sessions`);
       if (response.ok) {
         const data = await response.json();
@@ -179,7 +179,7 @@ export function StudentPageClient({
     } catch (error) {
       console.error("Failed to fetch session info:", error);
     } finally {
-      setLoadingSessions(false);
+      // setLoadingSessions(false);
     }
   }, [user.id]);
 
@@ -220,7 +220,7 @@ export function StudentPageClient({
     if (isPaid) {
       fetchSessionInfo();
     } else {
-      setLoadingSessions(false);
+      // setLoadingSessions(false);
     }
   }, [isPaid, fetchSessionInfo]);
 
@@ -253,7 +253,7 @@ export function StudentPageClient({
   // Memoize appointment rendering to prevent unnecessary re-renders
   const renderAppointment = useCallback((appt: Appt, isPast: boolean = false) => {
     const startDate = toDate(appt.startTime || appt.start);
-    const endDate = toDate(appt.endTime || appt.end);
+    // const endDate = toDate(appt.endTime || appt.end);
     
     if (!startDate) return null;
 
@@ -267,11 +267,11 @@ export function StudentPageClient({
             <p className="text-gray-600 text-sm mb-2">
               📅 {formatDate(startDate)} at {formatTime(startDate)}
             </p>
-            {endDate && (
+            {/* {endDate && (
               <p className="text-gray-500 text-xs">
                 Duration: {formatTime(startDate)} - {formatTime(endDate)}
               </p>
-            )}
+            )} */}
             {appt.location && (
               <p className="text-gray-600 text-sm mt-1">
                 📍 {appt.location}
@@ -410,7 +410,7 @@ export function StudentPageClient({
    // Function to render past lessons with lesson details
    const renderPastLesson = useCallback((appt: Appt) => {
      const startDate = toDate(appt.startTime || appt.start);
-     const endDate = toDate(appt.endTime || appt.end);
+     // const endDate = toDate(appt.endTime || appt.end);
      
      if (!startDate) return null;
 
@@ -477,7 +477,7 @@ export function StudentPageClient({
   // Function to render upcoming lessons with lesson details
   const renderUpcomingLesson = useCallback((appt: Appt) => {
     const startDate = toDate(appt.startTime || appt.start);
-    const endDate = toDate(appt.endTime || appt.end);
+    // const endDate = toDate(appt.endTime || appt.end);
     
     if (!startDate) return null;
 
@@ -503,11 +503,11 @@ export function StudentPageClient({
               {formatDateInTimezone(startDate)} at {formatTimeInTimezone(startDate)} {timezoneAbbr}
             </p>
             
-            {endDate && (
+            {/* {endDate && (
               <p className="text-gray-500 text-xs">
                 Duration: {formatTimeInTimezone(startDate)} - {formatTimeInTimezone(endDate)}
               </p>
-            )}
+            )} */}
           </div>
           <div className="text-right">
             <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
@@ -631,7 +631,7 @@ export function StudentPageClient({
                   </svg>
                 </Link>
               </div>
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-6 border-2 border-purple-200">
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-6 border-2 border-purple-200 overflow-hidden">
                 <FlashcardDeck userId={user.id} />
               </div>
             </div>

@@ -44,8 +44,8 @@ export function PricingModal({ isOpen, onClose, onSelectPlan, userEmail, preSele
         const response = await fetch("/api/billing/price-ids");
         const data = await response.json();
         setPriceIds(data);
-      } catch (error) {
-        console.error("Failed to fetch price IDs:", error);
+      } catch {
+        console.error("Failed to fetch price IDs");
       } finally {
         setIsLoadingPrices(false);
       }
@@ -196,7 +196,7 @@ export function PricingModal({ isOpen, onClose, onSelectPlan, userEmail, preSele
         } else {
           setCodeError(data.error || "Invalid code. Please try again.");
         }
-    } catch (error) {
+    } catch {
       setCodeError("Something went wrong. Please try again.");
     } finally {
       setIsCheckingCode(false);
@@ -223,7 +223,7 @@ export function PricingModal({ isOpen, onClose, onSelectPlan, userEmail, preSele
       } else {
         alert("Unable to start checkout. Please try again.");
       }
-    } catch (error) {
+    } catch {
       alert("Something went wrong. Please try again.");
     }
   }, [selectedOption, userEmail]);

@@ -689,67 +689,45 @@ apiRouter.post(
         console.log(`Continuing user creation without vocabulary for ${userId}`);
       }
 
-      // Create a copy of the Master English Lessons Library spreadsheet for the new user (teacher use only)
-      let lessonsLibrarySheetId = null;
+      // Create student lessons library from master lessons
       try {
-        // Use robust authentication with OAuth fallback to service account
-        const authClient = await getRobustGoogleClient([
-          "https://www.googleapis.com/auth/drive",
-          "https://www.googleapis.com/auth/spreadsheets",
-        ]);
+        console.log(`Creating lessons library for user ${userId}`);
 
-        const drive = google.drive({ version: "v3", auth: authClient });
+        // Get master lessons
+        const masterLessonsSnap = await db.collection("masterLessons")
+          .orderBy("index", "asc")
+          .get();
 
-        // Master English Lessons Library spreadsheet ID from environment variable
-        const masterLessonsLibraryId = "1lPLZ-N09Iz2nj11sVnIicw0uThdAxmgPAA2oAAbihnc"; // Temporary hardcode for testing
+        if (!masterLessonsSnap.empty) {
+          // Create student lessons from master
+          const addBatch = db.batch();
 
-        if (masterLessonsLibraryId) {
-          // First, check if we can access the master lessons library
-          try {
-            await drive.files.get({ fileId: masterLessonsLibraryId });
-          } catch (masterError) {
-            console.error(`Cannot access Master English Lessons Library ${masterLessonsLibraryId}:`, masterError);
-            throw new Error("Master English Lessons Library not accessible");
-          }
+          masterLessonsSnap.docs.forEach((doc) => {
+            const masterLesson = doc.data();
+            const studentLessonRef = db.collection("users")
+              .doc(userId)
+              .collection("lessons")
+              .doc();
 
-          // Create a copy of the master lessons library in the teacher's account (MsRaasch27@gmail.com)
-          const copyResponse = await drive.files.copy({
-            fileId: masterLessonsLibraryId,
-            requestBody: {
-              name: `${name || userId} Lesson Queue`,
-              // The copy will be created in the same account as the master (MsRaasch27@gmail.com)
-            },
+            addBatch.set(studentLessonRef, {
+              ...masterLesson,
+              completed: false,
+              debriefNotes: "",
+              studentId: userId,
+              createdAt: now,
+              updatedAt: now,
+            });
           });
 
-          if (copyResponse.data.id) {
-            lessonsLibrarySheetId = copyResponse.data.id;
-
-            // Note: Do NOT share with the student - this is purely for teacher use
-            console.log(`Created lessons library sheet ${lessonsLibrarySheetId} for user ${userId} (teacher use only)`);
-          }
+          await addBatch.commit();
+          console.log(`Created ${masterLessonsSnap.docs.length} lessons for user ${userId}`);
         } else {
-          console.log("MASTER_LESSONS_TEMPLATE_ID not set, skipping lessons library creation");
+          console.log("No master lessons found, skipping lessons library creation");
         }
       } catch (error) {
-        console.error("Error creating lessons library sheet:", error);
-
-        // Log more detailed error information
-        if (error && typeof error === "object" && "code" in error) {
-          console.error("Error code:", error.code);
-          console.error("Error details:", error);
-        }
-
-        // Log the failure for monitoring
-        await db.collection("sheet_creation_failures").add({
-          userId: userId,
-          sheetType: "lessons_library",
-          error: String(error),
-          errorCode: (error as any)?.code || null,
-          timestamp: new Date(),
-        });
-
-        // Don't fail the user creation if lessons library sheet creation fails
-        console.log(`Continuing user creation without lessons library sheet for ${userId}`);
+        console.error("Error creating lessons library:", error);
+        // Don't fail the user creation if lessons library creation fails
+        console.log(`Continuing user creation without lessons library for ${userId}`);
       }
 
       await db.collection("users").doc(userId).set(
@@ -764,14 +742,13 @@ apiRouter.post(
           preferredtime: preferredtime,
           timezone: timezone,
           photo: photo,
-          lessonsLibrarySheetId: lessonsLibrarySheetId, // For teacher reference only
           updatedAt: now,
           createdAt: now,
         },
         { merge: true }
       );
 
-      return res.status(200).json({ ok: true, userId, lessonsLibrarySheetId });
+      return res.status(200).json({ ok: true, userId });
     } catch (err: unknown) {
       console.error("form-submission error", err);
       return res.status(500).json({ error: "internal" });
@@ -1491,9 +1468,542 @@ apiRouter.post(
     }
   });
 
+// Initialize Master Lessons Library with sample data
+apiRouter.post("/admin/init-master-lessons", async (_req: Request, res: Response) => {
+  try {
+    console.log("Initializing Master Lessons Library...");
+
+    const masterLessons = [
+      {
+        index: 1,
+        cefrLevel: "A1",
+        unit: "Unit 1: Greetings and Introductions",
+        topic: "Basic Greetings",
+        learningActivity: "Practice greeting people in different situations (formal/informal)",
+        vocabulary: ["Hello", "Hi", "Good morning", "Good afternoon", "Good evening", "Goodbye", "See you later"],
+        resources: ["Greeting flashcards", "Role-play scenarios", "Audio pronunciation guide"],
+        homework: "Practice greetings with family members using different times of day",
+        teachingNotes: "Focus on pronunciation and cultural context of formal vs informal greetings",
+      },
+      {
+        index: 2,
+        cefrLevel: "A1",
+        unit: "Unit 1: Greetings and Introductions",
+        topic: "Introducing Yourself",
+        learningActivity: "Students introduce themselves and ask basic questions",
+        vocabulary: ["My name is", "I am", "What's your name?", "Nice to meet you", "How are you?", "I'm fine"],
+        resources: ["Introduction worksheet", "Name cards", "Conversation starters"],
+        homework: "Write 5 sentences introducing yourself and your family",
+        teachingNotes: "Encourage students to share something interesting about themselves",
+      },
+      {
+        index: 3,
+        cefrLevel: "A1",
+        unit: "Unit 1: Greetings and Introductions",
+        topic: "Numbers 1-20",
+        learningActivity: "Count objects, practice phone numbers, and ages",
+        vocabulary: ["Numbers 1-20", "How old are you?", "I am [age] years old", "Phone number", "Count"],
+        resources: ["Number flashcards", "Counting objects", "Phone number practice sheet"],
+        homework: "Practice counting household items and write your phone number in English",
+        teachingNotes: "Use visual aids and repetition for number recognition",
+      },
+      {
+        index: 4,
+        cefrLevel: "A1",
+        unit: "Unit 2: Family and Friends",
+        topic: "Family Members",
+        learningActivity: "Describe family relationships and create family trees",
+        vocabulary: ["Mother", "Father", "Sister", "Brother", "Grandmother", "Grandfather", "Uncle", "Aunt", "Cousin"],
+        resources: ["Family tree template", "Family photos", "Relationship chart"],
+        homework: "Draw your family tree and label each person in English",
+        teachingNotes: "Be sensitive to different family structures and cultures",
+      },
+      {
+        index: 5,
+        cefrLevel: "A1",
+        unit: "Unit 2: Family and Friends",
+        topic: "Describing People",
+        learningActivity: "Use adjectives to describe physical appearance and personality",
+        vocabulary: ["Tall", "Short", "Young", "Old", "Friendly", "Kind", "Funny", "Serious", "Beautiful", "Handsome"],
+        resources: ["Adjective flashcards", "Photo descriptions", "Personality quiz"],
+        homework: "Describe 3 family members using 2 adjectives each",
+        teachingNotes: "Focus on positive descriptions and avoid potentially offensive terms",
+      },
+      {
+        index: 6,
+        cefrLevel: "A2",
+        unit: "Unit 3: Daily Routines",
+        topic: "Daily Activities",
+        learningActivity: "Create and present daily schedules using present simple",
+        vocabulary: ["Wake up", "Get dressed", "Have breakfast", "Go to work", "Come home", "Have dinner", "Go to bed"],
+        resources: ["Daily routine cards", "Time expressions", "Schedule template"],
+        homework: "Write about your typical day using time expressions",
+        teachingNotes: "Introduce present simple tense and time expressions",
+      },
+      {
+        index: 7,
+        cefrLevel: "A2",
+        unit: "Unit 3: Daily Routines",
+        topic: "Time and Schedules",
+        learningActivity: "Practice telling time and discussing schedules",
+        vocabulary: ["O'clock", "Half past", "Quarter past", "Quarter to", "AM", "PM", "Schedule", "Appointment"],
+        resources: ["Clock face", "Schedule cards", "Time worksheets"],
+        homework: "Create a weekly schedule with 5 activities and their times",
+        teachingNotes: "Use both digital and analog time formats",
+      },
+      {
+        index: 8,
+        cefrLevel: "A2",
+        unit: "Unit 4: Food and Drink",
+        topic: "Food Vocabulary",
+        learningActivity: "Categorize foods and practice ordering in a restaurant",
+        vocabulary: ["Fruit", "Vegetables", "Meat", "Fish", "Dairy", "Bread", "Rice", "Pasta", "Water", "Coffee", "Tea"],
+        resources: ["Food flashcards", "Menu examples", "Grocery store flyers"],
+        homework: "Make a shopping list in English for your next grocery trip",
+        teachingNotes: "Include cultural food items and dietary preferences",
+      },
+      {
+        index: 9,
+        cefrLevel: "A2",
+        unit: "Unit 4: Food and Drink",
+        topic: "Restaurant Conversations",
+        learningActivity: "Role-play ordering food and asking about menu items",
+        vocabulary: ["Menu", "Order", "Bill", "Tip", "Delicious", "Spicy", "Sweet", "Salty", "I would like", "Could I have"],
+        resources: ["Restaurant menu", "Order forms", "Conversation scripts"],
+        homework: "Practice ordering your favorite meal in English",
+        teachingNotes: "Include cultural dining etiquette and tipping customs",
+      },
+      {
+        index: 10,
+        cefrLevel: "B1",
+        unit: "Unit 5: Past Experiences",
+        topic: "Past Simple Tense",
+        learningActivity: "Share past experiences using regular and irregular verbs",
+        vocabulary: ["Yesterday", "Last week", "Last year", "Went", "Saw", "Did", "Had", "Was", "Were", "Visited"],
+        resources: ["Past tense verb chart", "Experience cards", "Timeline worksheet"],
+        homework: "Write 5 sentences about what you did last weekend",
+        teachingNotes: "Focus on irregular verb patterns and pronunciation of -ed endings",
+      },
+    ];
+
+    // Clear existing master lessons
+    const existingLessons = await db.collection("masterLessons").get();
+    const batch = db.batch();
+    existingLessons.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+
+    // Add new master lessons
+    const addBatch = db.batch();
+    masterLessons.forEach((lesson) => {
+      const docRef = db.collection("masterLessons").doc();
+      addBatch.set(docRef, {
+        ...lesson,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+    await addBatch.commit();
+
+    console.log(`Successfully initialized ${masterLessons.length} master lessons`);
+    return res.json({
+      success: true,
+      message: `Initialized ${masterLessons.length} master lessons`,
+      count: masterLessons.length,
+    });
+  } catch (err) {
+    console.error("Error initializing master lessons:", err);
+    return res.status(500).json({ error: "Failed to initialize master lessons" });
+  }
+});
+
+// Get master lessons library
+apiRouter.get("/master-lessons", async (_req: Request, res: Response) => {
+  try {
+    const lessonsSnap = await db.collection("masterLessons")
+      .orderBy("index", "asc")
+      .get();
+
+    const lessons = lessonsSnap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.json({ lessons });
+  } catch (err: unknown) {
+    console.error("get master lessons error", err);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Get student's lessons library
+apiRouter.get("/users/:id/lessons", async (req: Request, res: Response) => {
+  try {
+    const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+
+    const lessonsSnap = await db.collection("users")
+      .doc(id)
+      .collection("lessons")
+      .orderBy("index", "asc")
+      .get();
+
+    const lessons = lessonsSnap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.json({ lessons });
+  } catch (err: unknown) {
+    console.error("get student lessons error", err);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Update student lesson
+apiRouter.put("/users/:id/lessons/:lessonId", async (req: Request, res: Response) => {
+  try {
+    const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+    const lessonId = req.params.lessonId;
+    const updateData = req.body || {};
+
+    const now = new Date();
+    const lessonUpdate = {
+      ...updateData,
+      updatedAt: now,
+    };
+
+    await db.collection("users")
+      .doc(id)
+      .collection("lessons")
+      .doc(lessonId)
+      .update(lessonUpdate);
+
+    return res.json({ ok: true });
+  } catch (err: unknown) {
+    console.error("update student lesson error", err);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Create student lessons library from master
+apiRouter.post("/users/:id/init-lessons", async (req: Request, res: Response) => {
+  try {
+    const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+
+    // Get master lessons
+    const masterLessonsSnap = await db.collection("masterLessons")
+      .orderBy("index", "asc")
+      .get();
+
+    if (masterLessonsSnap.empty) {
+      return res.status(404).json({ error: "Master lessons not found" });
+    }
+
+    // Clear existing student lessons
+    const existingLessons = await db.collection("users")
+      .doc(id)
+      .collection("lessons")
+      .get();
+
+    const batch = db.batch();
+    existingLessons.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+
+    // Create student lessons from master
+    const addBatch = db.batch();
+    const now = new Date();
+
+    masterLessonsSnap.docs.forEach((doc) => {
+      const masterLesson = doc.data();
+      const studentLessonRef = db.collection("users")
+        .doc(id)
+        .collection("lessons")
+        .doc();
+
+      addBatch.set(studentLessonRef, {
+        ...masterLesson,
+        completed: false,
+        debriefNotes: "",
+        studentId: id,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await addBatch.commit();
+
+    return res.json({
+      success: true,
+      message: `Initialized ${masterLessonsSnap.docs.length} lessons for student`,
+      count: masterLessonsSnap.docs.length,
+    });
+  } catch (err: unknown) {
+    console.error("init student lessons error", err);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
 // Test endpoint
 apiRouter.get("/test", (_req: Request, res: Response) => {
   return res.json({ message: "API router is working" });
+});
+
+// Debug endpoint to clear lesson details for testing
+apiRouter.delete("/debug/clear-lesson-details/:eventId", async (req: Request, res: Response) => {
+  try {
+    const eventId = req.params.eventId;
+    console.log(`Debug: Clearing lesson details for event ${eventId}`);
+
+    await db.collection("lessonDetails").doc(eventId).delete();
+
+    return res.json({
+      success: true,
+      eventId,
+      message: "Lesson details cleared",
+    });
+  } catch (error) {
+    console.error("Clear lesson details error:", error);
+    return res.status(500).json({ error: "Clear failed", details: String(error) });
+  }
+});
+
+// Debug endpoint to check lesson details for a specific event
+apiRouter.get("/debug/lesson-details/:eventId", async (req: Request, res: Response) => {
+  try {
+    const eventId = req.params.eventId;
+    console.log(`Debug: Checking lesson details for event ${eventId}`);
+
+    // Get lesson details
+    const lessonDetailsSnap = await db.collection("lessonDetails").doc(eventId).get();
+
+    if (!lessonDetailsSnap.exists) {
+      return res.json({
+        eventId,
+        lessonDetailsExists: false,
+        message: "No lesson details found for this event",
+      });
+    }
+
+    const lessonDetails = lessonDetailsSnap.data();
+
+    // Get the calendar event to find the student
+    const calendarEventSnap = await db.collection("calendarEvents").doc(eventId).get();
+    let studentId = null;
+    if (calendarEventSnap.exists) {
+      studentId = calendarEventSnap.data()?.studentId;
+    }
+
+    // Get student's lessons if we have a student ID (simplified query to avoid index requirement)
+    let studentLessons: any[] = [];
+    if (studentId) {
+      try {
+        const lessonsSnap = await db.collection("users")
+          .doc(studentId)
+          .collection("lessons")
+          .limit(5)
+          .get();
+
+        studentLessons = lessonsSnap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } catch (error) {
+        console.log("Could not fetch student lessons (index may be building):", error);
+        studentLessons = [];
+      }
+    }
+
+    return res.json({
+      eventId,
+      lessonDetailsExists: true,
+      lessonDetails,
+      studentId,
+      studentLessons,
+      message: "Lesson details found",
+    });
+  } catch (error) {
+    console.error("Debug lesson details error:", error);
+    return res.status(500).json({ error: "Debug failed", details: String(error) });
+  }
+});
+
+// Manual calendar sync endpoint for testing
+apiRouter.post("/admin/manual-calendar-sync", async (_req: Request, res: Response) => {
+  try {
+    console.log("Manual calendar sync triggered");
+
+    const calendarId = process.env.GOOGLE_CALENDAR_ID || S_CALENDAR_ID.value();
+    if (!calendarId) {
+      return res.status(500).json({ error: "GOOGLE_CALENDAR_ID not configured" });
+    }
+
+    // Auth as the function's service account (ADC)
+    const auth = await google.auth.getClient({
+      scopes: ["https://www.googleapis.com/auth/calendar.readonly", "https://www.googleapis.com/auth/calendar.events"],
+    });
+    const calendar = google.calendar({ version: "v3", auth });
+
+    // Get upcoming events (next 7 days)
+    const now = new Date();
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const resp = await calendar.events.list({
+      calendarId,
+      timeMin: now.toISOString(),
+      timeMax: nextWeek.toISOString(),
+      singleEvents: true,
+      maxResults: 50,
+    });
+
+    const events = resp.data.items || [];
+    let processedCount = 0;
+    let lessonDetailsPopulated = 0;
+
+    // Group events by student to track lesson progression
+    const studentEvents: Record<string, any[]> = {};
+    for (const ev of events) {
+      const eventId = ev.id;
+      if (!eventId) continue;
+
+      // Find student attendee
+      const firstStudentAttendee = (ev.attendees || []).find(
+        (a) =>
+          !!a.email &&
+          !a.self &&
+          a.email.toLowerCase() !== ev.organizer?.email?.toLowerCase()
+      );
+
+      if (!firstStudentAttendee?.email) continue;
+
+      const candidateId = firstStudentAttendee.email.toLowerCase();
+
+      // Check if user exists
+      const userSnap = await db.collection("users").doc(candidateId).get();
+      if (!userSnap.exists) continue;
+
+      // Group events by student
+      if (!studentEvents[candidateId]) {
+        studentEvents[candidateId] = [];
+      }
+      studentEvents[candidateId].push(ev);
+    }
+
+    // Process each student's events sequentially
+    for (const [studentId, studentEventList] of Object.entries(studentEvents)) {
+      // Sort events by start time to ensure proper lesson progression
+      studentEventList.sort((a, b) => {
+        const aStart = a.start?.dateTime || a.start?.date || "";
+        const bStart = b.start?.dateTime || b.start?.date || "";
+        return aStart.localeCompare(bStart);
+      });
+
+      console.log(`Processing ${studentEventList.length} events for student ${studentId}`);
+
+      // Get student's non-completed lessons
+      const lessonsSnap = await db.collection("users")
+        .doc(studentId)
+        .collection("lessons")
+        .where("completed", "==", false)
+        .orderBy("index", "asc")
+        .get();
+
+      const availableLessons = lessonsSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as any[];
+
+      console.log(`Found ${availableLessons.length} available lessons for student ${studentId}`);
+
+      // Process each event for this student
+      for (let i = 0; i < studentEventList.length; i++) {
+        const ev = studentEventList[i];
+        const eventId = ev.id;
+        if (!eventId) continue;
+
+        // Check if lesson details exist and if they're populated
+        const lessonDetailsSnap = await db.collection("lessonDetails").doc(eventId).get();
+
+        console.log(`Event ${eventId} for student ${studentId}: lesson details exist = ${lessonDetailsSnap.exists}`);
+
+        let needsPopulation = false;
+        if (!lessonDetailsSnap.exists) {
+          needsPopulation = true;
+          console.log(`Event ${eventId}: No lesson details exist, will create new ones`);
+        } else {
+          const existingDetails = lessonDetailsSnap.data();
+          // Check if lesson details are empty (only check content fields, not metadata)
+          const isEmpty = !existingDetails?.topic &&
+                         (!existingDetails?.vocabulary || existingDetails.vocabulary.length === 0) &&
+                         !existingDetails?.homework &&
+                         !existingDetails?.learningActivity &&
+                         (!existingDetails?.resources || existingDetails.resources.length === 0) &&
+                         !existingDetails?.teacherNotes;
+
+          console.log(`Event ${eventId}: Checking if lesson details are empty:`, {
+            topic: existingDetails?.topic,
+            vocabulary: existingDetails?.vocabulary,
+            homework: existingDetails?.homework,
+            learningActivity: existingDetails?.learningActivity,
+            resources: existingDetails?.resources,
+            teacherNotes: existingDetails?.teacherNotes,
+            isEmpty: isEmpty,
+          });
+
+          if (isEmpty) {
+            needsPopulation = true;
+            console.log(`Event ${eventId}: Lesson details exist but are empty, will populate them`);
+          } else {
+            console.log(`Event ${eventId}: Lesson details exist and are populated, skipping...`);
+          }
+        }
+
+        if (needsPopulation) {
+          // Use the lesson at index i (sequential progression)
+          if (i < availableLessons.length) {
+            const lessonData = availableLessons[i];
+            console.log(`Using lesson ${i + 1} (index ${lessonData.index}) for event ${eventId}:`, lessonData);
+
+            const populatedDetails: any = {
+              topic: lessonData.topic || null,
+              learningActivity: lessonData.learningActivity || null,
+              resources: lessonData.resources || [],
+              vocabulary: lessonData.vocabulary || [],
+              homework: lessonData.homework || null,
+              teacherNotes: lessonData.teachingNotes || null,
+              studentId: studentId,
+              calendarEventId: eventId,
+              lessonIndex: lessonData.index,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+
+            await db.collection("lessonDetails").doc(eventId).set(populatedDetails);
+            console.log(`Saved lesson details for event ${eventId} using lesson index ${lessonData.index}`);
+            lessonDetailsPopulated++;
+            processedCount++;
+          } else {
+            console.log(`No more available lessons for student ${studentId}, event ${eventId} will remain empty`);
+          }
+        } else {
+          console.log(`Lesson details already exist for event ${eventId}, skipping...`);
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Manual calendar sync completed",
+      eventsFound: events.length,
+      eventsProcessed: processedCount,
+      lessonDetailsPopulated: lessonDetailsPopulated,
+    });
+  } catch (error) {
+    console.error("Manual calendar sync error:", error);
+    return res.status(500).json({ error: "Manual calendar sync failed", details: String(error) });
+  }
 });
 
 // OAuth status monitoring endpoint
@@ -2095,6 +2605,24 @@ apiRouter.get(
       const lessonDetails = lessonDetailsSnap.data();
       console.log("Found lesson details:", lessonDetails);
 
+      // Check if lesson details are empty (only check content fields, not metadata)
+      const isEmpty = !lessonDetails?.topic &&
+                     (!lessonDetails?.vocabulary || lessonDetails.vocabulary.length === 0) &&
+                     !lessonDetails?.homework &&
+                     !lessonDetails?.learningActivity &&
+                     (!lessonDetails?.resources || lessonDetails.resources.length === 0) &&
+                     !lessonDetails?.teacherNotes;
+
+      console.log("Lesson details empty check:", {
+        topic: lessonDetails?.topic,
+        vocabulary: lessonDetails?.vocabulary,
+        homework: lessonDetails?.homework,
+        learningActivity: lessonDetails?.learningActivity,
+        resources: lessonDetails?.resources,
+        teacherNotes: lessonDetails?.teacherNotes,
+        isEmpty: isEmpty,
+      });
+
       return res.json({
         lesson: {
           id: lessonId,
@@ -2540,44 +3068,30 @@ export const syncCalendar = onSchedule(
             createdAt: new Date(),
           });
 
-          // Create lesson details record if it doesn't exist
+          // Create lesson details record if it doesn't exist or is empty
           const lessonDetailsRef = db.collection("lessonDetails").doc(eventId);
           const lessonDetailsSnap = await lessonDetailsRef.get();
+
+          let needsPopulation = false;
           if (!lessonDetailsSnap.exists) {
-            // Create empty lesson details record
-            const emptyDetails = {
-              topic: null,
-              vocabulary: [],
-              homework: null,
-              learningActivity: null,
-              resources: [],
-              teacherNotes: null,
-              calendarEventId: eventId,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            };
-
-            await lessonDetailsRef.set(emptyDetails);
-
-            // Update the calendar event description with empty details (will be empty initially)
-            try {
-              const description = formatLessonDetailsForCalendar(emptyDetails);
-              console.log("Updating new calendar event with description:", description);
-
-              const updateResult = await calendar.events.update({
-                calendarId,
-                eventId: eventId,
-                requestBody: {
-                  ...ev,
-                  description: description,
-                },
-              });
-              console.log(`Successfully updated new calendar event ${eventId} with empty lesson details structure:`, updateResult.data?.description);
-            } catch (calendarUpdateError) {
-              console.error("Error updating new calendar event:", calendarUpdateError);
-            }
+            needsPopulation = true;
           } else {
-            // Try to populate lesson details from student's lesson queue spreadsheet
+            const existingDetails = lessonDetailsSnap.data();
+            // Check if lesson details are empty (only check content fields, not metadata)
+            const isEmpty = !existingDetails?.topic &&
+                           (!existingDetails?.vocabulary || existingDetails.vocabulary.length === 0) &&
+                           !existingDetails?.homework &&
+                           !existingDetails?.learningActivity &&
+                           (!existingDetails?.resources || existingDetails.resources.length === 0) &&
+                           !existingDetails?.teacherNotes;
+
+            if (isEmpty) {
+              needsPopulation = true;
+            }
+          }
+
+          if (needsPopulation) {
+            // Try to populate lesson details from student's lessons library
             let populatedDetails = {
               topic: null,
               vocabulary: [],
@@ -2592,72 +3106,89 @@ export const syncCalendar = onSchedule(
             };
 
             try {
-              // Get the student's lesson queue spreadsheet ID
-              const studentDoc = await db.collection("users").doc(candidateId).get();
-              if (studentDoc.exists) {
-                const studentData = studentDoc.data();
-                const lessonsLibrarySheetId = studentData?.lessonsLibrarySheetId;
+              console.log(`Attempting to populate lesson details from database for student ${candidateId}`);
 
-                if (lessonsLibrarySheetId) {
-                  console.log(`Attempting to populate lesson details from spreadsheet ${lessonsLibrarySheetId} for student ${candidateId}`);
+              // Get all non-completed lessons from student's lessons library
+              const lessonsSnap = await db.collection("users")
+                .doc(candidateId)
+                .collection("lessons")
+                .where("completed", "==", false)
+                .orderBy("index", "asc")
+                .get();
 
-                  // Get Google Sheets API client with robust authentication
-                  const authClient = await getRobustGoogleClient([
-                    "https://www.googleapis.com/auth/spreadsheets.readonly",
-                  ]);
-                  const sheets = google.sheets({ version: "v4", auth: authClient });
+              if (!lessonsSnap.empty) {
+                const availableLessons = lessonsSnap.docs.map((doc) => ({
+                  id: doc.id,
+                  ...doc.data(),
+                })) as any[];
 
-                  // Read the first non-highlighted row from the lesson queue
-                  const response = await sheets.spreadsheets.values.get({
-                    spreadsheetId: lessonsLibrarySheetId,
-                    range: "A:F", // Assuming columns: Topic, Learning Activity, Resources, Vocabulary, Homework, Status
-                  });
+                // Find the next lesson to use based on existing lesson details
+                // Check if there are any existing lesson details for this student to determine progression
+                const existingLessonDetailsSnap = await db.collection("lessonDetails")
+                  .where("studentId", "==", candidateId)
+                  .orderBy("createdAt", "asc")
+                  .get();
 
-                  const rows = response.data.values || [];
-                  if (rows.length > 1) { // Skip header row
-                    // Find the first non-highlighted row (assuming status is in column F)
-                    let lessonRow = null;
-                    for (let i = 1; i < rows.length; i++) {
-                      const row = rows[i];
-                      const status = row[5] || ""; // Column F (index 5) for status
-                      // Skip rows that are marked as completed, cancelled, or highlighted
-                      if (!status.toLowerCase().includes("completed") &&
-                          !status.toLowerCase().includes("cancelled") &&
-                          !status.toLowerCase().includes("done") &&
-                          !status.toLowerCase().includes("highlighted")) {
-                        lessonRow = row;
-                        break;
-                      }
-                    }
-
-                    if (lessonRow) {
-                      console.log(`Found lesson row for student ${candidateId}:`, lessonRow);
-
-                      // Map spreadsheet columns to lesson details
-                      populatedDetails = {
-                        ...populatedDetails,
-                        topic: lessonRow[0] || null, // Column A: Topic
-                        learningActivity: lessonRow[1] || null, // Column B: Learning Activity
-                        resources: lessonRow[2] ? lessonRow[2].split(",").map((r: string) => r.trim()).filter((r: string) => r) : [], // Column C: Resources (comma-separated)
-                        vocabulary: lessonRow[3] ? lessonRow[3].split(",").map((v: string) => v.trim()).filter((v: string) => v) : [], // Column D: Vocabulary (comma-separated)
-                        homework: lessonRow[4] || null, // Column E: Homework
-                      };
-
-                      console.log(`Populated lesson details for student ${candidateId}:`, populatedDetails);
-                    } else {
-                      console.log(`No available lesson rows found in spreadsheet for student ${candidateId}`);
-                    }
+                let nextLessonIndex = 0;
+                if (!existingLessonDetailsSnap.empty) {
+                  // Find the highest lesson index already used
+                  const usedIndexes = existingLessonDetailsSnap.docs
+                    .map((doc) => doc.data().lessonIndex)
+                    .filter((index) => index !== undefined)
+                    .sort((a, b) => b - a);
+                  if (usedIndexes.length > 0) {
+                    nextLessonIndex = usedIndexes[0] + 1;
                   }
-                } else {
-                  console.log(`No lesson queue spreadsheet found for student ${candidateId}`);
                 }
+
+                // Find the lesson with the next index
+                const nextLesson = availableLessons.find((lesson) => lesson.index === nextLessonIndex);
+                if (nextLesson) {
+                  console.log(`Using lesson index ${nextLesson.index} for student ${candidateId}:`, nextLesson);
+
+                  // Map lesson data to lesson details
+                  populatedDetails = {
+                    ...populatedDetails,
+                    topic: nextLesson.topic || null,
+                    learningActivity: nextLesson.learningActivity || null,
+                    resources: nextLesson.resources || [],
+                    vocabulary: nextLesson.vocabulary || [],
+                    homework: nextLesson.homework || null,
+                    teacherNotes: nextLesson.teachingNotes || null,
+                    lessonIndex: nextLesson.index,
+                  } as any;
+
+                  console.log(`Populated lesson details for student ${candidateId} with lesson index ${nextLesson.index}:`, populatedDetails);
+                } else {
+                  console.log(`No lesson found with index ${nextLessonIndex} for student ${candidateId}`);
+                }
+              } else {
+                console.log(`No available lessons found in database for student ${candidateId}`);
               }
             } catch (error) {
-              console.error(`Error populating lesson details from spreadsheet for student ${candidateId}:`, error);
-              // Continue with empty lesson details if spreadsheet reading fails
+              console.error(`Error populating lesson details from database for student ${candidateId}:`, error);
+              // Continue with empty lesson details if database reading fails
             }
 
             stage(() => batch.set(lessonDetailsRef, populatedDetails));
+
+            // Update the calendar event description with populated details
+            try {
+              const description = formatLessonDetailsForCalendar(populatedDetails);
+              console.log("Updating calendar event with description:", description);
+
+              const updateResult = await calendar.events.update({
+                calendarId,
+                eventId: eventId,
+                requestBody: {
+                  ...ev,
+                  description: description,
+                },
+              });
+              console.log(`Successfully updated calendar event ${eventId} with lesson details:`, updateResult.data?.description);
+            } catch (calendarUpdateError) {
+              console.error("Error updating calendar event:", calendarUpdateError);
+            }
           }
 
           // Check if this lesson was just completed (moved from upcoming to past)

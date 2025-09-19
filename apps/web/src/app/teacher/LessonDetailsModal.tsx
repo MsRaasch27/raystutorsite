@@ -246,7 +246,7 @@ export function LessonDetailsModal({
               <div className="space-y-2">
                 {details.vocabulary?.map((word, index) => (
                   <div key={index} className="flex items-center gap-2">
-                    <span className="flex-1 p-2 bg-gray-100 rounded">{word}</span>
+                    <span className="flex-1 p-2 bg-gray-100 rounded text-gray-900">{word}</span>
                     <button
                       onClick={() => removeVocabulary(index)}
                       className="text-red-600 hover:text-red-800"
@@ -296,7 +296,7 @@ export function LessonDetailsModal({
               <div className="space-y-2">
                 {details.resources?.map((resource, index) => (
                   <div key={index} className="flex items-center gap-2">
-                    <span className="flex-1 p-2 bg-gray-100 rounded">{resource}</span>
+                    <span className="flex-1 p-2 bg-gray-100 rounded text-gray-900">{resource}</span>
                     <button
                       onClick={() => removeResource(index)}
                       className="text-red-600 hover:text-red-800"

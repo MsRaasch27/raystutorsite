@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { LessonDetailsModal } from "./LessonDetailsModal";
+import { StudentLessonsModal } from "./StudentLessonsModal";
 
 type Student = {
   id: string;
@@ -53,6 +54,8 @@ export function TeacherDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<{ lesson: Lesson; student: Student } | null>(null);
   const [showLessonModal, setShowLessonModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [showStudentLessonsModal, setShowStudentLessonsModal] = useState(false);
   const [expandedRecentStudents, setExpandedRecentStudents] = useState<Set<string>>(new Set());
   const [expandedUpcomingStudents, setExpandedUpcomingStudents] = useState<Set<string>>(new Set());
   const [lessonDetails, setLessonDetails] = useState<Record<string, LessonDetails>>({});
@@ -123,6 +126,11 @@ export function TeacherDashboard() {
   const handleLessonClick = (lesson: Lesson, student: Student) => {
     setSelectedLesson({ lesson, student });
     setShowLessonModal(true);
+  };
+
+  const handleOpenStudentLessons = (student: Student) => {
+    setSelectedStudent(student);
+    setShowStudentLessonsModal(true);
   };
 
   const handleEmailStudent = (email: string) => {
@@ -265,11 +273,19 @@ export function TeacherDashboard() {
               <h1 className="text-3xl font-bold mb-2 text-white">👨‍🏫 Teacher Dashboard</h1>
               <p className="text-gray-200">Manage your students and lessons</p>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-white">{students.length}</div>
-              <div className="text-gray-200 text-sm">Total Students</div>
-              <div className="text-gray-200 text-xs mt-1">
-                {students.filter(s => (s.billing as Record<string, unknown>)?.active === true).length} Active
+            <div className="flex items-center gap-4">
+              <a
+                href="/admin"
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors text-sm flex items-center gap-2"
+              >
+                🔧 Admin Panel
+              </a>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-white">{students.length}</div>
+                <div className="text-gray-200 text-sm">Total Students</div>
+                <div className="text-gray-200 text-xs mt-1">
+                  {students.filter(s => (s.billing as Record<string, unknown>)?.active === true).length} Active
+                </div>
               </div>
             </div>
           </div>
@@ -306,6 +322,12 @@ export function TeacherDashboard() {
                       {student.age && (
                         <span className="text-gray-600">Age: {student.age}</span>
                       )}
+                      <button
+                        onClick={() => handleOpenStudentLessons(student)}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
+                      >
+                        📚 Lessons Library
+                      </button>
                     </div>
                     
                     <div className="flex items-center gap-4 text-sm">
@@ -495,6 +517,18 @@ export function TeacherDashboard() {
             if (selectedLesson) {
               fetchLessonDetailsForStudents(students);
             }
+          }}
+        />
+      )}
+
+      {/* Student Lessons Modal */}
+      {selectedStudent && (
+        <StudentLessonsModal
+          student={selectedStudent}
+          isOpen={showStudentLessonsModal}
+          onClose={() => {
+            setShowStudentLessonsModal(false);
+            setSelectedStudent(null);
           }}
         />
       )}

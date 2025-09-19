@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth, isTeacher, canAccessStudentPage } from '@/lib/auth';
-import { usePathname } from 'next/navigation';
+// import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 
 interface ProtectedRouteProps {
@@ -16,7 +16,7 @@ export default function ProtectedRoute({
   studentEmail 
 }: ProtectedRouteProps) {
   const { user, loading, error, signIn } = useAuth();
-  const pathname = usePathname();
+  // const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) {

@@ -1,4 +1,5 @@
 import FreeTrialButton from "@/components/FreeTrialButton";
+import Link from "next/link";
 
 export default async function HomePage() {
   return (
@@ -150,28 +151,6 @@ export default async function HomePage() {
             </div>
           </div>
           
-          {/* Additional SEO content */}
-          <div className="mt-12 text-center">
-            <h3 className="text-2xl font-bold text-white mb-4">Why Choose Ray Raasch for English Tutoring?</h3>
-            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left">
-              <div>
-                <h4 className="text-xl font-semibold text-white mb-3">TEFL-Certified Expertise</h4>
-                <p className="text-gray-200">Certified Teaching English as a Foreign Language instructor with specialized training in effective language teaching methodologies.</p>
-              </div>
-              <div>
-                <h4 className="text-xl font-semibold text-white mb-3">Gamified Learning Approach</h4>
-                <p className="text-gray-200">Unique combination of education and gaming industry experience creates engaging, interactive learning experiences that make English fun to learn.</p>
-              </div>
-              <div>
-                <h4 className="text-xl font-semibold text-white mb-3">Personalized Curriculum</h4>
-                <p className="text-gray-200">Tailored lesson plans designed specifically for your learning style, goals, and current English proficiency level.</p>
-              </div>
-              <div>
-                <h4 className="text-xl font-semibold text-white mb-3">Flexible Online Sessions</h4>
-                <p className="text-gray-200">Convenient online English tutoring sessions that fit your schedule, with sessions available across different time zones.</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Calendar Section */}
@@ -223,6 +202,14 @@ export default async function HomePage() {
           <p className="mt-2 text-sm text-gray-400">
             Professional English tutoring services with personalized, gamified learning experiences.
           </p>
+          <div className="mt-4">
+            <Link 
+              href="/privacy" 
+              className="text-gray-400 hover:text-white text-sm transition-colors underline"
+            >
+              Privacy Policy
+            </Link>
+          </div>
         </div>
       </footer>
     </main>

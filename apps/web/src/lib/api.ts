@@ -1,4 +1,4 @@
-import { User } from './auth';
+// import { User } from './auth';
 
 /**
  * Makes an authenticated API call to Firebase Functions
