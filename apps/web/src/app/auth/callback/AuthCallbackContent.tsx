@@ -99,7 +99,7 @@ export default function AuthCallbackContent() {
       <div className="text-center">
         <div className="text-green-500 text-6xl mb-4">✅</div>
         <h1 className="text-2xl font-bold text-gray-800 mb-2">Successfully signed in!</h1>
-        <p className="text-gray-600">Redirecting you to the trial form...</p>
+        <p className="text-gray-600">Redirecting you to your dashboard...</p>
       </div>
     </div>
   );

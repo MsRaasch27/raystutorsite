@@ -40,6 +40,7 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
 
   // Fetch vocabulary words and progress
   useEffect(() => {
@@ -103,6 +104,11 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
 
   // Get current card
   const currentCard = dueCards[currentCardIndex];
+
+  // Handle card activation (bring to front)
+  const handleCardActivate = useCallback((wordId: string) => {
+    setActiveCardId(wordId);
+  }, []);
 
   // Handle card rating
   const handleRate = useCallback(async (wordId: string, difficulty: "easy" | "medium" | "hard") => {
@@ -239,16 +245,8 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-lg font-semibold text-gray-800">Vocabulary Builder</h3>
           <span className="text-sm text-gray-600">
-            {currentCardIndex + 1} of {dueCards.length} due
+            {dueCards.length} cards due for review
           </span>
-        </div>
-        
-        {/* Progress Bar */}
-        <div className="w-full bg-gray-200 rounded-full h-2 mb-3 overflow-hidden">
-          <div 
-            className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${Math.min(((currentCardIndex + 1) / dueCards.length) * 100, 100)}%` }}
-          ></div>
         </div>
         
         {/* Stats */}
@@ -272,32 +270,39 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
         </div>
       </div>
 
-      {/* Current Card */}
-      {currentCard && user && (
-        <Flashcard
-          word={currentCard}
-          user={user}
-          onRate={handleRate}
-          progress={progress[currentCard.id]}
-        />
-      )}
-
-      {/* Navigation */}
-      <div className="flex justify-center gap-4">
-        <button
-          onClick={() => setCurrentCardIndex(Math.max(0, currentCardIndex - 1))}
-          disabled={currentCardIndex === 0}
-          className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          ← Previous
-        </button>
-        <button
-          onClick={() => setCurrentCardIndex(Math.min(dueCards.length - 1, currentCardIndex + 1))}
-          disabled={currentCardIndex === dueCards.length - 1}
-          className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Next →
-        </button>
+      {/* Scattered Card Pile */}
+      <div className="relative h-96 overflow-visible bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-12">
+        <div className="relative w-full h-full">
+          {dueCards.map((card, index) => {
+            // Generate random positions and rotations for each card
+            // Keep cards more centered to avoid edge cutoff issues
+            const randomX = Math.random() * 50 + 20; // 20% to 70% from left
+            const randomY = Math.random() * 50 + 20; // 20% to 70% from top
+            const randomRotation = (Math.random() - 0.5) * 60; // -30 to +30 degrees
+            const isActive = activeCardId === card.id;
+            
+            return (
+              <div
+                key={card.id}
+                className="absolute transition-all duration-300 ease-in-out"
+                style={{
+                  left: `${randomX}%`,
+                  top: `${randomY}%`,
+                  transform: `rotate(${randomRotation}deg)`,
+                  zIndex: isActive ? 1000 : index + 1, // High z-index when active
+                }}
+              >
+                <Flashcard
+                  word={card}
+                  user={user!}
+                  onRate={handleRate}
+                  progress={progress[card.id]}
+                  onActivate={handleCardActivate}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

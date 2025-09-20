@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Ray Raasch - TEFL Certified English Language Tutor | Personalized Learning",
-    template: "%s | Ray Raasch - English Language Tutor"
+    default: "Enchanted English - Gamified English Language Tutoring",
+    template: "Enchanted English - Gamified English Language Tutoring"
   },
-  description: "Transform your English learning journey with Ray Raasch, a TEFL-certified tutor with over a decade of experience. Personalized, gamified English language learning designed to help you achieve your language goals fast.",
+  description: "Transform your English learning journey with Enchanted English, a TEFL-certified tutor with over a decade of experience. Personalized, gamified English language learning designed to help you achieve your language goals fast.",
   keywords: [
     "English tutor",
     "TEFL certified",
