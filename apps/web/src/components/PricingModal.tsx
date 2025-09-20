@@ -60,7 +60,7 @@ export function PricingModal({ isOpen, onClose, onSelectPlan, userEmail, preSele
     {
       id: "basic",
       name: "Basic Plan",
-      price: 99,
+      price: 55,
       currency: "USD",
       interval: "month",
       description: "4 tutoring sessions per month",
@@ -76,7 +76,7 @@ export function PricingModal({ isOpen, onClose, onSelectPlan, userEmail, preSele
     {
       id: "advanced",
       name: "Advanced Plan",
-      price: 179,
+      price: 105,
       currency: "USD", 
       interval: "month",
       description: "8 tutoring sessions per month",
@@ -93,7 +93,7 @@ export function PricingModal({ isOpen, onClose, onSelectPlan, userEmail, preSele
     {
       id: "premium",
       name: "Premium Plan",
-      price: 249,
+      price: 160,
       currency: "USD",
       interval: "month",
       description: "12 tutoring sessions per month",
@@ -109,7 +109,7 @@ export function PricingModal({ isOpen, onClose, onSelectPlan, userEmail, preSele
     {
       id: "unlimited",
       name: "Unlimited Plan",
-      price: 399,
+      price: 250,
       currency: "USD",
       interval: "month",
       description: "30 tutoring sessions per month",
@@ -125,7 +125,7 @@ export function PricingModal({ isOpen, onClose, onSelectPlan, userEmail, preSele
     {
       id: "addon",
       name: "Single Session",
-      price: 29,
+      price: 15,
       currency: "USD",
       interval: "one-time",
       description: "Purchase a single tutoring session",

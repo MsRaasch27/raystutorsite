@@ -6,28 +6,28 @@ Your tutoring site now uses a session-based pricing model where all plans are bi
 ## Pricing Plans
 
 ### Monthly Subscription Plans
-1. **Basic Plan** - $99/month
+1. **Basic Plan** - $55/month
    - **Sessions**: 4 tutoring sessions per month
    - Environment Variable: `STRIPE_BASIC_PRICE_ID`
    - Stripe Price ID needed
 
-2. **Advanced Plan** - $179/month
+2. **Advanced Plan** - $105/month
    - **Sessions**: 8 tutoring sessions per month
    - Environment Variable: `STRIPE_ADVANCED_PRICE_ID`
    - Stripe Price ID needed
 
-3. **Premium Plan** - $249/month
+3. **Premium Plan** - $160/month
    - **Sessions**: 12 tutoring sessions per month
    - Environment Variable: `STRIPE_PREMIUM_PRICE_ID`
    - Stripe Price ID needed
 
-4. **Unlimited Plan** - $399/month
+4. **Unlimited Plan** - $250/month
    - **Sessions**: 30 tutoring sessions per month
    - Environment Variable: `STRIPE_UNLIMITED_PRICE_ID`
    - Stripe Price ID needed
 
 ### Add-on Sessions
-5. **Single Session** - $29/one-time
+5. **Single Session** - $15/one-time
    - **Sessions**: 1 additional tutoring session
    - Environment Variable: `STRIPE_ADDON_PRICE_ID`
    - Stripe Price ID needed
