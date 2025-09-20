@@ -94,7 +94,16 @@ app.post("/oauth/verify", async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error("Token verification error:", err);
-    return res.status(401).json({ error: "Token verification failed" });
+
+    // Provide more specific error messages
+    const errorMessage = err instanceof Error ? err.message : "Token verification failed";
+    if (errorMessage.includes("Token used too late") || errorMessage.includes("expired")) {
+      return res.status(401).json({ error: "Token expired", code: "TOKEN_EXPIRED" });
+    } else if (errorMessage.includes("Invalid token")) {
+      return res.status(401).json({ error: "Invalid token", code: "INVALID_TOKEN" });
+    } else {
+      return res.status(401).json({ error: "Token verification failed", code: "VERIFICATION_FAILED" });
+    }
   }
 });
 

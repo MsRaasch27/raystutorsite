@@ -21,7 +21,12 @@ export default function ProtectedRoute({
   useEffect(() => {
     if (!loading && !user) {
       // User is not authenticated, redirect to sign in
-      signIn();
+      // Add a small delay to prevent rapid redirects
+      const timer = setTimeout(() => {
+        signIn();
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [loading, user, signIn]);
 

@@ -141,13 +141,13 @@ export function StudentPageClient({
   // Calculate level info based on current level tier
   const getLevelInfo = useCallback((level: number) => {
     const levels = [
-      { name: "Beginner Explorer", color: "from-yellow-400 to-orange-500" },
-      { name: "Novice Learner", color: "from-orange-400 to-red-500" },
-      { name: "Developing Student", color: "from-red-400 to-pink-500" },
-      { name: "Intermediate Explorer", color: "from-pink-400 to-purple-500" },
-      { name: "Advanced Learner", color: "from-purple-400 to-indigo-500" },
-      { name: "Proficient Student", color: "from-indigo-400 to-blue-500" },
-      { name: "Expert Explorer", color: "from-blue-400 to-cyan-500" },
+      { name: "Apprentice of Words", color: "from-yellow-400 to-orange-500" },
+      { name: "Adept of Phrases", color: "from-orange-400 to-red-500" },
+      { name: "Scholar of Incantations", color: "from-red-400 to-pink-500" },
+      { name: "Conjurer of Discourse", color: "from-pink-400 to-purple-500" },
+      { name: "Archmage of Expression", color: "from-purple-400 to-indigo-500" },
+      { name: "Sage of Tongues", color: "from-indigo-400 to-blue-500" },
+      { name: "Wizard of Language", color: "from-blue-400 to-cyan-500" },
       { name: "Master English Speaker", color: "from-cyan-400 to-emerald-500" },
       { name: "Grandmaster Linguist", color: "from-emerald-400 to-teal-500" },
       { name: "Legendary Polyglot", color: "from-teal-400 to-cyan-500" }
@@ -595,7 +595,6 @@ export function StudentPageClient({
           <div>            
             {/* Hero's Journey Progress */}
             <div className="mb-8">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">🏆 My Progress</h3>
               <div className="bg-gray-100 rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-lg font-semibold text-gray-700">Current Level: {levelInfo.name}</span>
@@ -620,7 +619,6 @@ export function StudentPageClient({
             {/* Interactive Flashcard Deck */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-800">🃏 My Flashcard Deck</h3>
                 <Link
                   href={`/student/${encodeURIComponent(user.id)}/vocabulary`}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-sm flex items-center gap-2"
@@ -660,7 +658,7 @@ export function StudentPageClient({
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[150px] h-[150px] object-contain"
+          className="w-[180px] h-[180px] object-contain"
         />
       </div>
       
@@ -673,7 +671,7 @@ export function StudentPageClient({
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[120px] h-[120px] object-contain"
+          className="w-[150px] h-[150px] object-contain"
         />
       </div>
       
@@ -686,12 +684,12 @@ export function StudentPageClient({
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[100px] h-[100px] object-contain"
+          className="w-[130px] h-[130px] object-contain"
         />
       </div>
       
       <div 
-        className="absolute top-24 left-1/3 z-50 pointer-events-none"
+        className="absolute top-24 left-4 z-50 pointer-events-none"
         style={{
           animation: 'slowBounce 3.2s ease-in-out infinite'
         }}
@@ -699,7 +697,7 @@ export function StudentPageClient({
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[110px] h-[110px] object-contain"
+          className="w-[140px] h-[140px] object-contain"
         />
       </div>
       
@@ -712,7 +710,7 @@ export function StudentPageClient({
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[90px] h-[90px] object-contain"
+          className="w-[120px] h-[120px] object-contain"
         />
       </div>
       
@@ -743,15 +741,7 @@ export function StudentPageClient({
               
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-                {hasCompletedAssessment ? (
-                  <button 
-                    disabled
-                    className="bg-gray-400 text-gray-600 px-6 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
-                    title="Assessment already completed"
-                  >
-                    ✅ Assessment Completed
-                  </button>
-                ) : (
+                {!hasCompletedAssessment && (
                   <a 
                     href="https://forms.gle/396aRWwtMGvLgiwX6" 
                     target="_blank" 
@@ -775,66 +765,50 @@ export function StudentPageClient({
                     className="bg-gray-400 text-gray-600 px-6 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
                     title="No sessions remaining. Purchase add-on sessions to continue."
                   >
-                    📅 Schedule Lesson
+                    📅 Schedule Lesson (0 remaining)
                   </button>
                 ) : (
                   <a 
                     href="https://calendly.com/msraasch27/50min" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-amber-700 transition-colors shadow-lg inline-block text-center"
+                    className="bg-white text-amber-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-block text-center"
+                    title={sessionInfo ? `${sessionInfo.sessionsRemaining} sessions remaining` : "Schedule your lesson"}
                   >
-                    📅 Schedule Lesson
+                    📅  Schedule Lesson {sessionInfo && `(${sessionInfo.sessionsRemaining} remaining)`}
                   </a>
+                )}
+                {isPaid && (
+                  <button
+                    onClick={openPricingModal}
+                    className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors inline-block text-center"
+                  >
+                    🔄  Adjust Plan
+                  </button>
                 )}
               </div>
             </div>
 
-            {/* Session Info (for paid users) - Right aligned */}
-            {isPaid && sessionInfo && (
-              <div className="w-full lg:w-auto lg:min-w-[300px]">
-                <div className={`border rounded-lg p-3 ${
-                  sessionInfo.sessionsRemaining > 0 
-                    ? "bg-green-50 border-green-200" 
-                    : "bg-red-50 border-red-200"
-                }`}>
-                  <div className={`text-sm ${sessionInfo.sessionsRemaining > 0 ? "text-green-800" : "text-red-800"}`}>
-                    <div className="font-semibold text-base mb-1">
-                      {sessionInfo.sessionsRemaining > 0 ? "📚 Sessions Available" : "⚠️ No Sessions Left"}
+            {/* Student Avatar Section - Right aligned */}
+            <div className="w-full lg:w-auto lg:min-w-[200px] flex justify-center lg:justify-end">
+              <div className="relative">
+                <div className="w-32 h-32 lg:w-40 lg:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
+                  {levelInfo.name === "Apprentice of Words" ? (
+                    <img
+                      src="/wizardsnail.png"
+                      alt="Wizard Snail Avatar"
+                      className="w-full h-full object-cover"
+                      style={{ objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <div className="text-4xl lg:text-5xl text-gray-400">
+                      🧙‍♂️
                     </div>
-                    <div className="text-xs mb-2">
-                      {sessionInfo.sessionsRemaining > 0 
-                        ? `${sessionInfo.sessionsRemaining} of ${sessionInfo.totalAvailable} remaining`
-                        : "All sessions used this month"
-                      }
-                    </div>
-                    <div className="text-xs opacity-75">
-                      {sessionInfo.currentPlan.charAt(0).toUpperCase() + sessionInfo.currentPlan.slice(1)} Plan
-                    </div>
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex flex-col gap-2 mt-3">
-                    <button
-                      onClick={openPricingModal}
-                      className="bg-amber-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-amber-700 transition-colors"
-                    >
-                      🔄 Change Plan
-                    </button>
-                    <button
-                      onClick={() => openPricingModalWithPlan('addon')}
-                      className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-                        sessionInfo.sessionsRemaining === 0 
-                          ? "bg-red-600 text-white hover:bg-red-700" 
-                          : "bg-orange-600 text-white hover:bg-orange-700"
-                      }`}
-                    >
-                      {sessionInfo.sessionsRemaining === 0 ? "🚨 Buy Add-ons" : "➕ Buy Add-ons"}
-                    </button>
-                  </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
+
           </div>
         </div>
       </section>

@@ -16,7 +16,7 @@ export default async function HomePage() {
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[150px] h-[150px] object-contain"
+          className="w-[180px] h-[180px] object-contain"
         />
       </div>
       
@@ -29,7 +29,7 @@ export default async function HomePage() {
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[120px] h-[120px] object-contain"
+          className="w-[150px] h-[150px] object-contain"
         />
       </div>
       
@@ -42,12 +42,12 @@ export default async function HomePage() {
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[100px] h-[100px] object-contain"
+          className="w-[130px] h-[130px] object-contain"
         />
       </div>
       
       <div 
-        className="absolute top-24 left-1/3 z-50 pointer-events-none"
+        className="absolute top-24 left-4 z-50 pointer-events-none"
         style={{
           animation: 'slowBounce 3.2s ease-in-out infinite'
         }}
@@ -55,7 +55,7 @@ export default async function HomePage() {
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[110px] h-[110px] object-contain"
+          className="w-[140px] h-[140px] object-contain"
         />
       </div>
       
@@ -68,7 +68,7 @@ export default async function HomePage() {
         <img
           src="/candle.png"
           alt="Floating Candle"
-          className="w-[90px] h-[90px] object-contain"
+          className="w-[120px] h-[120px] object-contain"
         />
       </div>
       
@@ -91,22 +91,40 @@ export default async function HomePage() {
           <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-6xl">
             {/* Top Section with Profile Image and Header Text */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8">
-              {/* Profile Image */}
-              <div className="w-28 h-28 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30 flex-shrink-0">
-                <img
-                  src="/TEFLclass.jpg"
-                  alt="TEFL Class Teaching"
-                  className="w-full h-full object-cover"
-                />
+              {/* Profile Image with Wizard Hat */}
+              <div className="relative w-28 h-28 md:w-40 md:h-40 flex-shrink-0">
+                {/* Profile Image */}
+                <div className="w-full h-full rounded-full overflow-hidden border-4 border-white border-opacity-30">
+                  <img
+                    src="/TEFLclass.jpg"
+                    alt="TEFL Class Teaching"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {/* Wizard Hat */}
+                <div 
+                  className="absolute -top-13 -left-10 z-10"
+                  style={{
+                    transform: 'rotate(-32deg)',
+                    transformOrigin: 'center'
+                  }}
+                >
+                  <img
+                    src="/wizardhat.png"
+                    alt="Wizard Hat"
+                    className="w-19 h-19 md:w-23 md:h-23 object-contain drop-shadow-lg"
+                  />
+                </div>
               </div>
 
               {/* Header Text */}
               <div className="text-center md:text-left flex-1">
                 <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 text-white">
-                  Level Up Your English Skills
+                  Discover the Power of English
                 </h1>
                 <p className="text-lg md:text-xl lg:text-2xl text-white max-w-2xl">
-                  Personalized gamified English language learning designed to help you crush your language goals fast. TEFL-certified tutoring with over a decade of experience in education and gaming.
+                  Join me on a magical quest to unlock your English language abilities.
                 </p>
               </div>
             </div>

@@ -35,6 +35,27 @@ export function useAuth(): AuthState {
           return;
         }
 
+        // Check if token might be expired (Google ID tokens expire after 1 hour)
+        // We'll still try to verify it, but this helps with debugging
+        try {
+          const tokenParts = token.split('.');
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            const exp = payload.exp * 1000; // Convert to milliseconds
+            const now = Date.now();
+            
+            if (now > exp) {
+              console.log('Token appears to be expired, removing it');
+              localStorage.removeItem('auth_token');
+              setUser(null);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (tokenParseError) {
+          console.log('Could not parse token, will attempt verification anyway');
+        }
+
         // Verify the token with our backend
         try {
           const response = await fetch('https://us-central1-raystutorsite.cloudfunctions.net/api/oauth/verify', {
@@ -49,14 +70,17 @@ export function useAuth(): AuthState {
             const userData = await response.json();
             setUser(userData);
           } else {
-            // Token is invalid, remove it
+            // Token is invalid or expired, remove it and trigger re-authentication
+            console.log('Token verification failed, removing expired token');
             localStorage.removeItem('auth_token');
             setUser(null);
+            // Don't set error here - let the ProtectedRoute handle re-authentication
           }
         } catch (verifyError) {
           console.error('Token verification error:', verifyError);
           localStorage.removeItem('auth_token');
           setUser(null);
+          // Don't set error here - let the ProtectedRoute handle re-authentication
         }
         
         setLoading(false);
