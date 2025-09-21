@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { LessonDetailsModal } from "./LessonDetailsModal";
 import { StudentLessonsModal } from "./StudentLessonsModal";
+import StudentImagePrompt from "@/components/StudentImagePrompt";
 
 type Student = {
   id: string;
@@ -385,6 +386,14 @@ export function TeacherDashboard() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* AI Image Prompt Section */}
+              <div className="px-6 pb-4">
+                <StudentImagePrompt 
+                  studentId={student.id} 
+                  studentName={student.name || student.email.split('@')[0]} 
+                />
               </div>
 
               {/* Lessons Section */}

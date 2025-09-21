@@ -34,9 +34,10 @@ interface FlashcardProps {
   onRate: (wordId: string, difficulty: "easy" | "medium" | "hard") => Promise<void>;
   progress?: FlashcardProgress;
   onActivate?: (wordId: string) => void;
+  showEnglishFirst?: boolean;
 }
 
-export function Flashcard({ word, user, onRate, progress, onActivate }: FlashcardProps) {
+export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = true }: FlashcardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isRating, setIsRating] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -104,14 +105,7 @@ export function Flashcard({ word, user, onRate, progress, onActivate }: Flashcar
     }
   }, [isPlayingAudio]);
 
-  const getDifficultyColor = (difficulty: "easy" | "medium" | "hard") => {
-    switch (difficulty) {
-      case "easy": return "text-green-600 bg-green-100";
-      case "medium": return "text-yellow-600 bg-yellow-100";
-      case "hard": return "text-red-600 bg-red-100";
-      default: return "text-gray-600 bg-gray-100";
-    }
-  };
+  // Removed getDifficultyColor function as it's not used in scattered layout
 
   return (
     <div className="w-48 h-32 cursor-pointer perspective-1000 relative">
@@ -127,100 +121,194 @@ export function Flashcard({ word, user, onRate, progress, onActivate }: Flashcar
             isFlipped ? "rotate-y-180" : ""
           }`}
         >
-          {/* Front of card */}
+          {/* Front of card - shows English first if showEnglishFirst is true, native language if false */}
           <div className="absolute inset-0 w-full h-full backface-hidden">
-            <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
-              <div className="text-center">
-                <h3 className="text-lg font-bold mb-1">{word.english}</h3>
-                <p className="text-blue-200 text-xs italic">Tap to reveal</p>
+            {showEnglishFirst ? (
+              <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
+                <div className="text-center">
+                  <h3 className="text-lg font-bold mb-1">{word.english}</h3>
+                  <p className="text-blue-200 text-xs italic">Tap to reveal</p>
+                </div>
+                
+                {/* Audio button for English */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTextToSpeech(word.english, "en-US");
+                  }}
+                  disabled={isPlayingAudio}
+                  className="absolute top-2 right-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-1 transition-all duration-200 disabled:opacity-50"
+                  title="Listen to English pronunciation"
+                >
+                  {isPlayingAudio ? (
+                    <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <svg className="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.5 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.5l4.883-3.793a1 1 0 011.617.793zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
               </div>
-              
-              {/* Audio button for English */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTextToSpeech(word.english, "en-US");
-                }}
-                disabled={isPlayingAudio}
-                className="absolute top-2 right-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-1 transition-all duration-200 disabled:opacity-50"
-                title="Listen to English pronunciation"
-              >
-                {isPlayingAudio ? (
-                  <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <svg className="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.5 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.5l4.883-3.793a1 1 0 011.617.793zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </button>
-            </div>
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-green-500 to-teal-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
+                <div className="text-center">
+                  <h3 className="text-lg font-bold mb-1">{getNativeLanguageValue()}</h3>
+                  <p className="text-green-200 text-xs italic">Tap to reveal</p>
+                </div>
+                
+                {/* Audio button for native language */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nativeValue = getNativeLanguageValue();
+                    if (nativeValue) {
+                      // Detect language based on user's native language setting
+                      let languageCode = "en-US"; // default fallback
+                      if (user?.natLang) {
+                        // Map common language names to language codes
+                        const languageMap: Record<string, string> = {
+                          "Thai": "th-TH",
+                          "thai": "th-TH",
+                          "ไทย": "th-TH",
+                          "Spanish": "es-ES",
+                          "spanish": "es-ES",
+                          "español": "es-ES",
+                          "French": "fr-FR",
+                          "french": "fr-FR",
+                          "français": "fr-FR",
+                          "German": "de-DE",
+                          "german": "de-DE",
+                          "deutsch": "de-DE",
+                          "Japanese": "ja-JP",
+                          "japanese": "ja-JP",
+                          "日本語": "ja-JP",
+                          "Korean": "ko-KR",
+                          "korean": "ko-KR",
+                          "한국어": "ko-KR",
+                          "Chinese": "zh-CN",
+                          "chinese": "zh-CN",
+                          "中文": "zh-CN",
+                          "Mandarin": "zh-CN",
+                          "mandarin": "zh-CN",
+                        };
+                        languageCode = languageMap[user.natLang] || "en-US";
+                      }
+                      handleTextToSpeech(nativeValue, languageCode);
+                    }
+                  }}
+                  disabled={isPlayingAudio}
+                  className="absolute top-2 right-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-1 transition-all duration-200 disabled:opacity-50"
+                  title={`Listen to ${user?.natLang || "native language"} pronunciation`}
+                >
+                  {isPlayingAudio ? (
+                    <div className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.5 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.5l4.883-3.793a1 1 0 011.617.793zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Back of card */}
+          {/* Back of card - shows the opposite of what's on the front */}
           <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180">
-            <div className="w-full h-full bg-gradient-to-br from-green-500 to-teal-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
-              <div className="text-center">
-                <h3 className="text-lg font-bold mb-1">{getNativeLanguageValue()}</h3>
-                <p className="text-green-100 text-xs mb-1">{word.english}</p>
-                {word.example && (
-                  <p className="text-green-200 text-xs italic mb-2">&ldquo;{word.example}&rdquo;</p>
-                )}
-                <p className="text-green-200 text-xs">Tap to flip back</p>
-              </div>
-              
-              {/* Audio button for native language */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const nativeValue = getNativeLanguageValue();
-                  if (nativeValue) {
-                    // Detect language based on user's native language setting
-                    let languageCode = "en-US"; // default fallback
-                    if (user?.natLang) {
-                      // Map common language names to language codes
-                      const languageMap: Record<string, string> = {
-                        "Thai": "th-TH",
-                        "thai": "th-TH",
-                        "ไทย": "th-TH",
-                        "Spanish": "es-ES",
-                        "spanish": "es-ES",
-                        "español": "es-ES",
-                        "French": "fr-FR",
-                        "french": "fr-FR",
-                        "français": "fr-FR",
-                        "German": "de-DE",
-                        "german": "de-DE",
-                        "deutsch": "de-DE",
-                        "Japanese": "ja-JP",
-                        "japanese": "ja-JP",
-                        "日本語": "ja-JP",
-                        "Korean": "ko-KR",
-                        "korean": "ko-KR",
-                        "한국어": "ko-KR",
-                        "Chinese": "zh-CN",
-                        "chinese": "zh-CN",
-                        "中文": "zh-CN",
-                        "Mandarin": "zh-CN",
-                        "mandarin": "zh-CN",
-                      };
-                      languageCode = languageMap[user.natLang] || "en-US";
+            {showEnglishFirst ? (
+              <div className="w-full h-full bg-gradient-to-br from-green-500 to-teal-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
+                <div className="text-center">
+                  <h3 className="text-lg font-bold mb-1">{getNativeLanguageValue()}</h3>
+                  <p className="text-green-100 text-xs mb-1">{word.english}</p>
+                  {word.example && (
+                    <p className="text-green-200 text-xs italic mb-2">&ldquo;{word.example}&rdquo;</p>
+                  )}
+                  <p className="text-green-200 text-xs">Tap to flip back</p>
+                </div>
+                
+                {/* Audio button for native language */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nativeValue = getNativeLanguageValue();
+                    if (nativeValue) {
+                      // Detect language based on user's native language setting
+                      let languageCode = "en-US"; // default fallback
+                      if (user?.natLang) {
+                        // Map common language names to language codes
+                        const languageMap: Record<string, string> = {
+                          "Thai": "th-TH",
+                          "thai": "th-TH",
+                          "ไทย": "th-TH",
+                          "Spanish": "es-ES",
+                          "spanish": "es-ES",
+                          "español": "es-ES",
+                          "French": "fr-FR",
+                          "french": "fr-FR",
+                          "français": "fr-FR",
+                          "German": "de-DE",
+                          "german": "de-DE",
+                          "deutsch": "de-DE",
+                          "Japanese": "ja-JP",
+                          "japanese": "ja-JP",
+                          "日本語": "ja-JP",
+                          "Korean": "ko-KR",
+                          "korean": "ko-KR",
+                          "한국어": "ko-KR",
+                          "Chinese": "zh-CN",
+                          "chinese": "zh-CN",
+                          "中文": "zh-CN",
+                          "Mandarin": "zh-CN",
+                          "mandarin": "zh-CN",
+                        };
+                        languageCode = languageMap[user.natLang] || "en-US";
+                      }
+                      handleTextToSpeech(nativeValue, languageCode);
                     }
-                    handleTextToSpeech(nativeValue, languageCode);
-                  }
-                }}
-                disabled={isPlayingAudio}
-                className="absolute top-2 right-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-1 transition-all duration-200 disabled:opacity-50"
-                title={`Listen to ${user?.natLang || "native language"} pronunciation`}
-              >
-                {isPlayingAudio ? (
-                  <div className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.5 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.5l4.883-3.793a1 1 0 011.617.793zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </button>
-            </div>
+                  }}
+                  disabled={isPlayingAudio}
+                  className="absolute top-2 right-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-1 transition-all duration-200 disabled:opacity-50"
+                  title={`Listen to ${user?.natLang || "native language"} pronunciation`}
+                >
+                  {isPlayingAudio ? (
+                    <div className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.5 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.5l4.883-3.793a1 1 0 011.617.793zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
+                <div className="text-center">
+                  <h3 className="text-lg font-bold mb-1">{word.english}</h3>
+                  <p className="text-blue-100 text-xs mb-1">{getNativeLanguageValue()}</p>
+                  {word.example && (
+                    <p className="text-blue-200 text-xs italic mb-2">&ldquo;{word.example}&rdquo;</p>
+                  )}
+                  <p className="text-blue-200 text-xs">Tap to flip back</p>
+                </div>
+                
+                {/* Audio button for English */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTextToSpeech(word.english, "en-US");
+                  }}
+                  disabled={isPlayingAudio}
+                  className="absolute top-2 right-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full p-1 transition-all duration-200 disabled:opacity-50"
+                  title="Listen to English pronunciation"
+                >
+                  {isPlayingAudio ? (
+                    <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <svg className="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.5 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.5l4.883-3.793a1 1 0 011.617.793zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

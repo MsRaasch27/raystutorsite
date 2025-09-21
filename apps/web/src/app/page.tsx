@@ -8,19 +8,6 @@ export default async function HomePage() {
       <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
       {/* Floating Candles */}
       <div 
-        className="absolute top-8 right-8 z-50 pointer-events-none"
-        style={{
-          animation: 'slowBounce 3s ease-in-out infinite'
-        }}
-      >
-        <img
-          src="/candle.png"
-          alt="Floating Candle"
-          className="w-[180px] h-[180px] object-contain"
-        />
-      </div>
-      
-      <div 
         className="absolute top-16 left-12 z-50 pointer-events-none"
         style={{
           animation: 'slowBounce 3.5s ease-in-out infinite'
@@ -30,19 +17,6 @@ export default async function HomePage() {
           src="/candle.png"
           alt="Floating Candle"
           className="w-[150px] h-[150px] object-contain"
-        />
-      </div>
-      
-      <div 
-        className="absolute top-32 right-32 z-50 pointer-events-none"
-        style={{
-          animation: 'slowBounce 2.8s ease-in-out infinite'
-        }}
-      >
-        <img
-          src="/candle.png"
-          alt="Floating Candle"
-          className="w-[130px] h-[130px] object-contain"
         />
       </div>
       
@@ -59,19 +33,6 @@ export default async function HomePage() {
         />
       </div>
       
-      <div 
-        className="absolute top-40 right-16 z-50 pointer-events-none"
-        style={{
-          animation: 'slowBounce 2.5s ease-in-out infinite'
-        }}
-      >
-        <img
-          src="/candle.png"
-          alt="Floating Candle"
-          className="w-[120px] h-[120px] object-contain"
-        />
-      </div>
-      
       <style dangerouslySetInnerHTML={{
         __html: `
           @keyframes slowBounce {
@@ -82,13 +43,121 @@ export default async function HomePage() {
               transform: translateY(-15px);
             }
           }
+          
+          @media (max-width: 756px) {
+            .candle-1 {
+              top: -20px !important;
+              right: -20px !important;
+              width: 150px !important;
+              height: 150px !important;
+            }
+            .candle-2 {
+              top: -10px !important;
+              right: -10px !important;
+              width: 120px !important;
+              height: 120px !important;
+            }
+            .candle-3 {
+              top: -5px !important;
+              right: -25px !important;
+              width: 100px !important;
+              height: 100px !important;
+            }
+          }
+          
+          @media (min-width: 757px) {
+            .candle-1 {
+              top: -180px !important;
+              right: -100px !important;
+              width: 300px !important;
+              height: 300px !important;
+            }
+            .candle-2 {
+              top: -100px !important;
+              right: -20px !important;
+              width: 250px !important;
+              height: 250px !important;
+            }
+            .candle-3 {
+              top: -80px !important;
+              right: -80px !important;
+              width: 200px !important;
+              height: 200px !important;
+            }
+          }
         `
       }} />
 
 <section className="max-w-6xl mx-auto px-4 py-16 rounded-2xl" style={{ backgroundColor: '#000000' }}>
 
           {/* Content Container with Black Background */}
-          <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-6xl">
+          <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-6xl relative">
+            {/* Candles in Bottom Right Corner */}
+            <div className="absolute bottom-12 right-0 z-50 pointer-events-none">
+              <div 
+                className="absolute -top-45 -right-50 candle-1"
+                style={{
+                  animation: 'slowBounce 3s ease-in-out infinite',
+                  width: '300px',
+                  height: '300px'
+                }}
+              >
+                <img
+                  src="/candle.png"
+                  alt="Floating Candle"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    maxWidth: 'none',
+                    maxHeight: 'none'
+                  }}
+                />
+              </div>
+              
+              <div 
+                className="absolute -top-25 -right-30 candle-2"
+                style={{
+                  animation: 'slowBounce 2.8s ease-in-out infinite',
+                  width: '250px',
+                  height: '250px'
+                }}
+              >
+                <img
+                  src="/candle.png"
+                  alt="Floating Candle"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    maxWidth: 'none',
+                    maxHeight: 'none'
+                  }}
+                />
+              </div>
+              
+              <div 
+                className="absolute -top-20 -right-45 candle-3"
+                style={{
+                  animation: 'slowBounce 2.5s ease-in-out infinite',
+                  width: '200px',
+                  height: '200px'
+                }}
+              >
+                <img
+                  src="/candle.png"
+                  alt="Floating Candle"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    maxWidth: 'none',
+                    maxHeight: 'none'
+                  }}
+                />
+              </div>
+              
+            </div>
             {/* Top Section with Profile Image and Header Text */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8">
               {/* Profile Image with Wizard Hat */}

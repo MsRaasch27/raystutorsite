@@ -5,6 +5,8 @@ import Link from "next/link";
 import { FlashcardDeck } from "../../../components/FlashcardDeck";
 import { PricingModal, PricingOption } from "../../../components/PricingModal";
 import { CEFRLevels } from "../../../components/CEFRLevels";
+import AnimalFamiliarPopup from "../../../components/AnimalFamiliarPopup";
+import CreatureSelectionScreen from "../../../components/CreatureSelectionScreen";
 
 type SessionInfo = {
   sessionsThisMonth: number;
@@ -121,6 +123,11 @@ export function StudentPageClient({
   const [activeTab, setActiveTab] = useState<TabType>('practice');
   // const [checkingOut, setCheckingOut] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showAnimalFamiliarPopup, setShowAnimalFamiliarPopup] = useState(false);
+  const [showCreatureSelection, setShowCreatureSelection] = useState(false);
+  const [selectedCreature, setSelectedCreature] = useState<string | null>(null);
+  const [isSelectingCreature, setIsSelectingCreature] = useState(false);
+  const [cameFromAnimalFamiliar, setCameFromAnimalFamiliar] = useState(false);
   const [preSelectPlan, setPreSelectPlan] = useState<string | undefined>(undefined);
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   // const [loadingSessions, setLoadingSessions] = useState(true);
@@ -130,6 +137,20 @@ export function StudentPageClient({
   const isPaid = !!user.billing?.active;
   const hasCompletedFirstLesson = past.items.length > 0;
   const locked = hasCompletedFirstLesson && !isPaid;
+  
+  // Show animal familiar popup when user is locked and hasn't seen it yet
+  useEffect(() => {
+    if (locked && !showAnimalFamiliarPopup && !showCreatureSelection) {
+      setShowAnimalFamiliarPopup(true);
+    }
+  }, [locked, showAnimalFamiliarPopup, showCreatureSelection]);
+
+  // Show creature selection for subscribed users who haven't selected a creature yet
+  useEffect(() => {
+    if (isPaid && !selectedCreature && !showCreatureSelection && !showAnimalFamiliarPopup) {
+      setShowCreatureSelection(true);
+    }
+  }, [isPaid, selectedCreature, showCreatureSelection, showAnimalFamiliarPopup]);
   const hasCompletedAssessment = assessments.length > 0;
 
   // Calculate level and progress based on completed lessons (50 lessons per level)
@@ -236,18 +257,75 @@ export function StudentPageClient({
       window.location.reload(); // Refresh to show unlocked state
     } else {
       // Refresh session info after purchase
-      setTimeout(() => fetchSessionInfo(), 2000);
+      setTimeout(() => {
+        fetchSessionInfo();
+        // If user came from animal familiar popup, show creature selection
+        if (cameFromAnimalFamiliar && !selectedCreature) {
+          setShowCreatureSelection(true);
+          setCameFromAnimalFamiliar(false); // Reset the flag
+        }
+      }, 2000);
     }
-  }, [fetchSessionInfo]);
+  }, [fetchSessionInfo, cameFromAnimalFamiliar, selectedCreature, setShowCreatureSelection, setCameFromAnimalFamiliar]);
 
   const openPricingModal = useCallback(() => {
     setPreSelectPlan(undefined);
     setShowPricingModal(true);
   }, []);
 
-  const openPricingModalWithPlan = useCallback((planToPreSelect: string) => {
-    setPreSelectPlan(planToPreSelect);
+  // const openPricingModalWithPlan = useCallback((planToPreSelect: string) => {
+  //   setPreSelectPlan(planToPreSelect);
+  //   setShowPricingModal(true);
+  // }, []);
+
+  // Animal familiar flow handlers
+  const handleAnimalFamiliarContinue = useCallback(() => {
+    setShowAnimalFamiliarPopup(false);
+    setCameFromAnimalFamiliar(true);
+    // Direct to subscription purchase first
     setShowPricingModal(true);
+  }, []);
+
+  const handleAnimalFamiliarClose = useCallback(() => {
+    setShowAnimalFamiliarPopup(false);
+    setCameFromAnimalFamiliar(true);
+    // After closing, show the subscription prompt
+    setShowPricingModal(true);
+  }, []);
+
+  const handleCreatureSelection = useCallback(async (creatureId: string) => {
+    setIsSelectingCreature(true);
+    try {
+      const response = await fetch('/api/save-selected-creature', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          creatureId,
+        }),
+      });
+
+      if (response.ok) {
+        setSelectedCreature(creatureId);
+        setShowCreatureSelection(false);
+        // Creature selected successfully - no need to show pricing modal
+      } else {
+        throw new Error('Failed to save creature selection');
+      }
+    } catch (error) {
+      console.error('Error saving creature selection:', error);
+      // Still close the selection screen
+      setShowCreatureSelection(false);
+    } finally {
+      setIsSelectingCreature(false);
+    }
+  }, [user.id]);
+
+  const handleCreatureSelectionClose = useCallback(() => {
+    setShowCreatureSelection(false);
+    // User is already subscribed at this point, no need to show pricing
   }, []);
 
   // Memoize appointment rendering to prevent unnecessary re-renders
@@ -472,7 +550,7 @@ export function StudentPageClient({
         </div>
       </div>
     );
-  }, [lessonDetails, formatDateInTimezone, formatTimeInTimezone, setActiveTab]);
+  }, [lessonDetails, formatDateInTimezone, formatTimeInTimezone, setActiveTab, getTimezoneAbbreviation]);
 
   // Function to render upcoming lessons with lesson details
   const renderUpcomingLesson = useCallback((appt: Appt) => {
@@ -616,6 +694,35 @@ export function StudentPageClient({
               </div>
             </div>
 
+            {/* Selected Creature Display */}
+            {selectedCreature && (
+              <div className="mb-8">
+                <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-4 border-2 border-purple-200">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md">
+                      <img
+                        src={`/${selectedCreature}.png`}
+                        alt="Selected Creature"
+                        className="w-12 h-12 object-contain"
+                        onError={(e) => {
+                          // Fallback to emoji if image doesn't exist
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.parentElement!.innerHTML = '<div class="text-2xl">🦄</div>';
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-800">Your Animal Familiar</h3>
+                      <p className="text-sm text-gray-600">
+                        Your magical learning companion is here to guide your journey!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Interactive Flashcard Deck */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
@@ -644,7 +751,7 @@ export function StudentPageClient({
       default:
         return null;
     }
-  }, [activeTab, past.items, upcoming.items, renderAppointment, user.id]);
+  }, [activeTab, past.items, upcoming.items, renderAppointment, user.id, completedLessons, lessonsInCurrentLevel, levelInfo.color, levelInfo.name, loadingLessonDetails, progressPercentage, selectedCreature, renderPastLesson, renderUpcomingLesson]);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
@@ -789,25 +896,61 @@ export function StudentPageClient({
               </div>
             </div>
 
-            {/* Student Avatar Section - Right aligned */}
-            <div className="w-full lg:w-auto lg:min-w-[200px] flex justify-center lg:justify-end">
-              <div className="relative">
-                <div className="w-32 h-32 lg:w-40 lg:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
-                  {levelInfo.name === "Apprentice of Words" ? (
-                    <img
-                      src="/wizardsnail.png"
-                      alt="Wizard Snail Avatar"
-                      className="w-full h-full object-cover"
-                      style={{ objectFit: 'contain' }}
-                    />
-                  ) : (
-                    <div className="text-4xl lg:text-5xl text-gray-400">
-                      🧙‍♂️
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+{/* Student Avatar Section - Right aligned */}
+<div className="w-full lg:w-auto lg:min-w-[200px] flex justify-center lg:justify-end">
+  <div className="relative">
+    <div className="w-32 h-32 lg:w-40 lg:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
+      {levelInfo.name === "Apprentice of Words" ? (
+        <img
+          src="/wizardsnail.png"
+          alt="Wizard Snail Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Adept of Phrases" ? (
+        <img
+          src="/wizardchipmunk.png"
+          alt="Wizard Chipmunk Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Scholar of Incantations" ? (
+        <img
+          src="/wizardrabbit.png"
+          alt="Wizard Rabbit Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Conjurer of Discourse" ? (
+        <img
+          src="/wizardraccoon.png"
+          alt="Wizard Raccoon Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Archmage of Expression" ? (
+        <img
+          src="/wizardfox.png"
+          alt="Wizard Fox Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Sage of Tongues" ? (
+        <img
+          src="/wizardbear.png"
+          alt="Wizard Bear Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : (
+        <div className="text-4xl lg:text-5xl text-gray-400">
+          🧙‍♂️
+        </div>
+      )}
+    </div>
+  </div>
+</div>
+
 
           </div>
         </div>
@@ -945,6 +1088,21 @@ export function StudentPageClient({
         onSelectPlan={handlePlanSelection}
         userEmail={user.email}
         preSelectPlan={preSelectPlan}
+      />
+
+      {/* Animal Familiar Popup */}
+      <AnimalFamiliarPopup
+        isOpen={showAnimalFamiliarPopup}
+        onClose={handleAnimalFamiliarClose}
+        onContinue={handleAnimalFamiliarContinue}
+      />
+
+      {/* Creature Selection Screen */}
+      <CreatureSelectionScreen
+        isOpen={showCreatureSelection}
+        onClose={handleCreatureSelectionClose}
+        onSelectCreature={handleCreatureSelection}
+        isLoading={isSelectingCreature}
       />
     </main>
   );

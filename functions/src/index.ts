@@ -45,6 +45,72 @@ app.use(
 );
 app.use(express.json());
 
+// ----- Student Image Prompt Endpoint -----
+app.post("/api/student-image-prompt", async (req: Request, res: Response) => {
+  try {
+    const { studentId, prompt } = req.body;
+
+    if (!studentId || !prompt) {
+      return res.status(400).json({
+        error: "Student ID and prompt are required",
+      });
+    }
+
+    // TODO: Store the student-specific prompt in your database
+    // For now, we'll just return success
+    // You can implement this with Firestore or your preferred database
+
+    console.log(`Setting custom image prompt for student ${studentId}: ${prompt}`);
+
+    return res.json({
+      success: true,
+      message: "Custom image prompt set successfully",
+      studentId,
+      prompt,
+    });
+  } catch (error) {
+    console.error("Error setting student image prompt:", error);
+    return res.status(500).json({
+      error: "Failed to set image prompt",
+    });
+  }
+});
+
+// ----- Save Selected Creature Endpoint -----
+app.post("/api/save-selected-creature", async (req: Request, res: Response) => {
+  try {
+    const { userId, creatureId } = req.body;
+
+    if (!userId || !creatureId) {
+      return res.status(400).json({
+        error: "User ID and creature ID are required",
+      });
+    }
+
+    // TODO: Save the selected creature to Firestore
+    // For now, we'll just return success
+    // You can implement this with Firestore:
+    // await admin.firestore().collection('users').doc(userId).update({
+    //   selectedCreature: creatureId,
+    //   creatureSelectedAt: admin.firestore.FieldValue.serverTimestamp()
+    // });
+
+    console.log(`Saving selected creature ${creatureId} for user ${userId}`);
+
+    return res.json({
+      success: true,
+      message: "Creature selected successfully",
+      userId,
+      creatureId,
+    });
+  } catch (error) {
+    console.error("Error saving selected creature:", error);
+    return res.status(500).json({
+      error: "Failed to save selected creature",
+    });
+  }
+});
+
 // ----- Verify ID Token Endpoint -----
 app.post("/oauth/verify", async (req: Request, res: Response) => {
   try {

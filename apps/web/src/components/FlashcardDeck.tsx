@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Flashcard } from "./Flashcard";
+import { useDailyImage } from "../hooks/useDailyImage";
 
 type VocabularyWord = {
   id: string;
@@ -41,6 +42,10 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [showEnglishFirst, setShowEnglishFirst] = useState(true);
+  
+  // Get daily background image
+  const { imageUrl, prompt, source } = useDailyImage();
 
   // Fetch vocabulary words and progress
   useEffect(() => {
@@ -102,8 +107,8 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
     });
   }, [words, progress]);
 
-  // Get current card
-  const currentCard = dueCards[currentCardIndex];
+  // Get current card (not used in scattered layout but kept for compatibility)
+  // const currentCard = dueCards[currentCardIndex];
 
   // Handle card activation (bring to front)
   const handleCardActivate = useCallback((wordId: string) => {
@@ -249,6 +254,28 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
           </span>
         </div>
         
+        {/* Language Toggle Switch */}
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <span className={`text-sm font-medium ${!showEnglishFirst ? 'text-blue-600' : 'text-gray-500'}`}>
+            {user?.natLang || 'Native Language'}
+          </span>
+          <button
+            onClick={() => setShowEnglishFirst(!showEnglishFirst)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+              showEnglishFirst ? 'bg-blue-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                showEnglishFirst ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+          <span className={`text-sm font-medium ${showEnglishFirst ? 'text-blue-600' : 'text-gray-500'}`}>
+            English
+          </span>
+        </div>
+        
         {/* Stats */}
         <div className="grid grid-cols-4 gap-2 text-xs">
           <div className="text-center">
@@ -271,7 +298,15 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
       </div>
 
       {/* Scattered Card Pile */}
-      <div className="relative h-96 overflow-visible bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-12">
+      <div 
+        className="relative h-96 overflow-visible rounded-lg p-12"
+        style={{
+          backgroundImage: `url(${imageUrl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
         <div className="relative w-full h-full">
           {dueCards.map((card, index) => {
             // Generate random positions and rotations for each card
@@ -298,6 +333,7 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
                   onRate={handleRate}
                   progress={progress[card.id]}
                   onActivate={handleCardActivate}
+                  showEnglishFirst={showEnglishFirst}
                 />
               </div>
             );
