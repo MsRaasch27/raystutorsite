@@ -284,18 +284,59 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer className="bg-gray-800 text-white py-8 mt-16">
-        <div className="max-w-6xl mx-auto px-6 text-center">
-          <p>&copy; 2025 Ray Raasch - TEFL Certified English Language Tutor. All rights reserved.</p>
-          <p className="mt-2 text-sm text-gray-400">
-            Professional English tutoring services with personalized, gamified learning experiences.
-          </p>
-          <div className="mt-4">
-            <Link 
-              href="/privacy" 
-              className="text-gray-400 hover:text-white text-sm transition-colors underline"
-            >
-              Privacy Policy
-            </Link>
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-6">
+            <p>&copy; 2025 Enchanted English - TEFL Certified English Language Tutor. All rights reserved.</p>
+            <p className="mt-2 text-sm text-gray-400">
+              Professional English tutoring services with personalized, gamified learning experiences.
+            </p>
+          </div>
+          
+          {/* Footer Links */}
+          <div className="border-t border-gray-700 pt-6">
+            <div className="flex flex-wrap justify-center gap-6 text-center">
+              <Link 
+                href="/services" 
+                className="text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                Services & Pricing
+              </Link>
+              <span className="text-gray-600">•</span>
+              <Link 
+                href="/legal/terms" 
+                className="text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                Terms of Service
+              </Link>
+              <span className="text-gray-600">•</span>
+              <Link 
+                href="/legal/refund" 
+                className="text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                Refund Policy
+              </Link>
+              <span className="text-gray-600">•</span>
+              <Link 
+                href="/legal/cancellation" 
+                className="text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                Cancellation Policy
+              </Link>
+              <span className="text-gray-600">•</span>
+              <Link 
+                href="/legal/restrictions" 
+                className="text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                Export Restrictions
+              </Link>
+              <span className="text-gray-600">•</span>
+              <Link 
+                href="/privacy" 
+                className="text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                Privacy Policy
+              </Link>
+            </div>
           </div>
         </div>
       </footer>
