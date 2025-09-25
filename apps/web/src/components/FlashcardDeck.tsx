@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Flashcard } from "./Flashcard";
 import { useDailyImage } from "../hooks/useDailyImage";
+import RewardAnimation from "./RewardAnimation";
 
 type VocabularyWord = {
   id: string;
@@ -45,6 +46,8 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
   const [showEnglishFirst, setShowEnglishFirst] = useState(true);
   const [isSimpleMode, setIsSimpleMode] = useState(false);
   const [currentCardFlipped, setCurrentCardFlipped] = useState(false);
+  const [showRewardAnimation, setShowRewardAnimation] = useState(false);
+  const [hasCompletedToday, setHasCompletedToday] = useState(false);
   
   // Get daily background image
   const { imageUrl, prompt, source } = useDailyImage();
@@ -191,6 +194,19 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
     }
   }, [userId, progress, isSimpleMode, handleNextCard]);
 
+  // Check if all due cards are completed and trigger reward animation
+  useEffect(() => {
+    if (dueCards.length === 0 && words.length > 0 && !hasCompletedToday && !isLoading) {
+      setShowRewardAnimation(true);
+      setHasCompletedToday(true);
+    }
+  }, [dueCards.length, words.length, hasCompletedToday, isLoading]);
+
+  // Handle reward animation completion
+  const handleRewardComplete = useCallback(() => {
+    setShowRewardAnimation(false);
+  }, []);
+
   // Calculate statistics
   const stats = useMemo(() => {
     const totalWords = words.length;
@@ -319,25 +335,6 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
           </span>
         </div>
         
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-2 text-xs">
-          <div className="text-center">
-            <div className="font-semibold text-purple-600">{stats.total}</div>
-            <div className="text-gray-500">Total</div>
-          </div>
-          <div className="text-center">
-            <div className="font-semibold text-blue-600">{stats.reviewed}</div>
-            <div className="text-gray-500">Reviewed</div>
-          </div>
-          <div className="text-center">
-            <div className="font-semibold text-orange-600">{stats.due}</div>
-            <div className="text-gray-500">Due</div>
-          </div>
-          <div className="text-center">
-            <div className="font-semibold text-green-600">{stats.mastered}</div>
-            <div className="text-gray-500">Mastered</div>
-          </div>
-        </div>
       </div>
 
       {/* Card Interface */}
@@ -454,6 +451,12 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
           </div>
         </div>
       )}
+      
+      {/* Reward Animation */}
+      <RewardAnimation
+        isVisible={showRewardAnimation}
+        onComplete={handleRewardComplete}
+      />
     </div>
   );
 }

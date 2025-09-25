@@ -6,32 +6,6 @@ export default async function HomePage() {
     <>
       {/* SEO-optimized content structure */}
       <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" style={{ backgroundImage: 'url(/gothic_full_cropped.png)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
-      {/* Floating Candles */}
-      <div 
-        className="absolute top-16 left-12 z-50 pointer-events-none"
-        style={{
-          animation: 'slowBounce 3.5s ease-in-out infinite'
-        }}
-      >
-        <img
-          src="/candle.png"
-          alt="Floating Candle"
-          className="w-[150px] h-[150px] object-contain"
-        />
-      </div>
-      
-      <div 
-        className="absolute top-24 left-4 z-50 pointer-events-none"
-        style={{
-          animation: 'slowBounce 3.2s ease-in-out infinite'
-        }}
-      >
-        <img
-          src="/candle.png"
-          alt="Floating Candle"
-          className="w-[140px] h-[140px] object-contain"
-        />
-      </div>
       
       <style dangerouslySetInnerHTML={{
         __html: `
@@ -92,6 +66,46 @@ export default async function HomePage() {
 
           {/* Content Container with Black Background */}
           <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-6xl relative">
+            {/* Candles in Top Left Corner */}
+            <div className="absolute -top-16 -left-12 z-50 pointer-events-none">
+              <div 
+                className="absolute top-0 left-0"
+                style={{
+                  animation: 'slowBounce 3.5s ease-in-out infinite',
+                  width: '150px',
+                  height: '150px'
+                }}
+              >
+                <img
+                  src="/candle.png"
+                  alt="Floating Candle"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain'
+                  }}
+                />
+              </div>
+              
+              <div 
+                className="absolute top-6 left-16"
+                style={{
+                  animation: 'slowBounce 3.2s ease-in-out infinite',
+                  width: '130px',
+                  height: '130px'
+                }}
+              >
+                <img
+                  src="/candle.png"
+                  alt="Floating Candle"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain'
+                  }}
+                />
+              </div>
+            </div>
             {/* Candles in Bottom Right Corner */}
             <div className="absolute bottom-12 right-0 z-50 pointer-events-none">
               <div 
@@ -171,20 +185,6 @@ export default async function HomePage() {
                   />
                 </div>
                 
-                {/* Wizard Hat */}
-                <div 
-                  className="absolute -top-13 -left-10 z-10"
-                  style={{
-                    transform: 'rotate(-32deg)',
-                    transformOrigin: 'center'
-                  }}
-                >
-                  <img
-                    src="/wizardhat.png"
-                    alt="Wizard Hat"
-                    className="w-19 h-19 md:w-23 md:h-23 object-contain drop-shadow-lg"
-                  />
-                </div>
               </div>
 
               {/* Header Text */}

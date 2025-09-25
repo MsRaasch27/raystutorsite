@@ -1,19 +1,24 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 
-type Props = {
-  ctaText: string;
+interface SparkleButtonProps {
+  href: string;
+  children: React.ReactNode;
   className?: string;
-  variant?: "primary" | "secondary";
-};
+  title?: string;
+  target?: string;
+  rel?: string;
+}
 
-// Google OAuth config - you'll need to set these up in Google Cloud Console
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-const GOOGLE_REDIRECT_URI = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '';
-
-export default function FreeTrialButton({ ctaText, className = "", variant = "primary" }: Props) {
-  const [isLoading, setIsLoading] = useState(false);
+export default function SparkleButton({ 
+  href, 
+  children, 
+  className = "", 
+  title,
+  target = "_blank",
+  rel = "noopener noreferrer"
+}: SparkleButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isClicked, setIsClicked] = useState(false);
   const [autoSparkle, setAutoSparkle] = useState(false);
@@ -32,58 +37,17 @@ export default function FreeTrialButton({ ctaText, className = "", variant = "pr
     scheduleNextSparkle();
   }, []);
 
-  const handleClick = useCallback(async () => {
+  const handleClick = () => {
     // Trigger click animation
     setIsClicked(true);
     setTimeout(() => setIsClicked(false), 1000); // Reset after 1 second
-
-    if (!GOOGLE_CLIENT_ID) {
-      console.error("Google OAuth not configured");
-      // Fallback to direct form
-      window.open("https://forms.gle/kMfysT3gYQ1PsqLQ8", "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      
-      // Build Google OAuth URL
-      const params = new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: GOOGLE_REDIRECT_URI,
-        response_type: 'code',
-        scope: 'openid email profile',
-        access_type: 'offline',
-        prompt: 'consent'
-      });
-
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-      
-      // Store the intended destination
-      sessionStorage.setItem('freeTrialRedirect', 'https://forms.gle/kMfysT3gYQ1PsqLQ8');
-      
-      // Redirect to Google OAuth
-      window.location.href = authUrl;
-    } catch (err) {
-      console.error("OAuth error", err);
-      // Fallback to direct form
-      window.open("https://forms.gle/kMfysT3gYQ1PsqLQ8", "_blank", "noopener,noreferrer");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const baseStyles =
-    variant === "primary"
-      ? "bg-white text-amber-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-block text-center relative"
-      : "border-2 border-amber-600 text-amber-600 px-6 py-3 rounded-lg font-semibold hover:bg-amber-50 transition-colors inline-block text-center relative";
+  };
 
   return (
     <div className="relative inline-block">
       {/* Click Sparkle Effect - shoots out from border (outside button) */}
       {isClicked && (
         <div className="absolute inset-0 pointer-events-none z-50">
-          {/* Sparkles shooting out from all sides */}
           {[...Array(20)].map((_, i) => {
             const side = Math.floor(i / 5); // 0=top, 1=right, 2=bottom, 3=left
             const position = (i % 5) / 4; // 0 to 1 along the side
@@ -138,18 +102,19 @@ export default function FreeTrialButton({ ctaText, className = "", variant = "pr
         </div>
       )}
 
-      <button
-        type="button"
+      <a
+        href={href}
+        target={target}
+        rel={rel}
         onClick={handleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`${baseStyles} overflow-hidden ${className}`}
-        disabled={isLoading}
+        className={`${className} relative overflow-hidden`}
+        title={title}
       >
         {/* Gold Sparkle Effect on Hover or Auto */}
         {(isHovered || autoSparkle) && (
           <div className="absolute inset-0 pointer-events-none">
-            {/* Sparkle particles */}
             {[...Array(12)].map((_, i) => (
               <div
                 key={i}
@@ -164,28 +129,18 @@ export default function FreeTrialButton({ ctaText, className = "", variant = "pr
             ))}
           </div>
         )}
-        
+
         {/* Button content */}
         <span className="relative z-10">
-          {isLoading ? "Connecting..." : ctaText}
+          {children}
         </span>
-      </button>
-      
-      {/* CSS for sparkle animations */}
+      </a>
+
+      {/* CSS for animations */}
       <style jsx>{`
         @keyframes sparkle {
-          0% {
-            opacity: 0;
-            transform: scale(0) rotate(0deg);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1) rotate(180deg);
-          }
-          100% {
-            opacity: 0;
-            transform: scale(0) rotate(360deg);
-          }
+          0%, 100% { opacity: 0; transform: scale(0); }
+          50% { opacity: 1; transform: scale(1); }
         }
         
         @keyframes clickSparkle {
@@ -202,13 +157,7 @@ export default function FreeTrialButton({ ctaText, className = "", variant = "pr
         .animate-sparkle {
           animation: sparkle ease-out forwards;
         }
-        
-        .animate-click-sparkle {
-          animation: clickSparkle ease-out forwards;
-        }
       `}</style>
     </div>
   );
 }
-
-
