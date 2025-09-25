@@ -3,7 +3,7 @@ import { uploadGeneratedImage } from '../../../lib/imageStorage';
 
 // Fallback images to use if AI generation fails
 const FALLBACK_IMAGES = [
-  '/fujimoto.png',
+  '/forestwizardschool.png',
   '/gothic_full_cropped.png',
   '/wallpaper.png'
 ];

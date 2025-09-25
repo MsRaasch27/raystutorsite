@@ -295,11 +295,18 @@ export default async function HomePage() {
           {/* Footer Links */}
           <div className="border-t border-gray-700 pt-6">
             <div className="flex flex-wrap justify-center gap-6 text-center">
-              <Link 
-                href="/services" 
+              <Link
+                href="/services"
                 className="text-gray-400 hover:text-white text-sm transition-colors"
               >
                 Services & Pricing
+              </Link>
+              <span className="text-gray-600">•</span>
+              <Link
+                href="/contact"
+                className="text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                Contact Support
               </Link>
               <span className="text-gray-600">•</span>
               <Link 

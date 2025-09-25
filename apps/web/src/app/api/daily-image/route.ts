@@ -22,7 +22,7 @@ const DEFAULT_PROMPTS = [
 
 // Fallback images
 const FALLBACK_IMAGES = [
-  '/fujimoto.png',
+  '/forestwizardschool.png',
   '/gothic_full_cropped.png',
   '/wallpaper.png'
 ];

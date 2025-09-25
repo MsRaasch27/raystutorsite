@@ -35,9 +35,11 @@ interface FlashcardProps {
   progress?: FlashcardProgress;
   onActivate?: (wordId: string) => void;
   showEnglishFirst?: boolean;
+  isSimpleMode?: boolean;
+  onFlip?: (isFlipped: boolean) => void;
 }
 
-export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = true }: FlashcardProps) {
+export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = true, isSimpleMode = false, onFlip }: FlashcardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isRating, setIsRating] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -49,10 +51,13 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
   }, [word, user?.natLang]);
 
   const handleFlip = useCallback(() => {
-    setIsFlipped(!isFlipped);
+    const newFlippedState = !isFlipped;
+    setIsFlipped(newFlippedState);
     // Bring this card to the front when clicked
     onActivate?.(word.id);
-  }, [isFlipped, onActivate, word.id]);
+    // Notify parent component about flip state
+    onFlip?.(newFlippedState);
+  }, [isFlipped, onActivate, word.id, onFlip]);
 
   const handleRate = useCallback(async (difficulty: "easy" | "medium" | "hard") => {
     setIsRating(true);
@@ -108,7 +113,7 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
   // Removed getDifficultyColor function as it's not used in scattered layout
 
   return (
-    <div className="w-48 h-32 cursor-pointer perspective-1000 relative">
+    <div className={`${isSimpleMode ? 'w-full h-64' : 'w-48 h-32'} cursor-pointer perspective-1000 relative`}>
       {/* Flashcard */}
       <div 
         className={`relative w-full h-full ${
@@ -126,7 +131,7 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
             {showEnglishFirst ? (
               <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
                 <div className="text-center">
-                  <h3 className="text-lg font-bold mb-1">{word.english}</h3>
+                  <h3 className={`${isSimpleMode ? 'text-3xl' : 'text-lg'} font-bold mb-1`}>{word.english}</h3>
                   <p className="text-blue-200 text-xs italic">Tap to reveal</p>
                 </div>
                 
@@ -152,7 +157,7 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-green-500 to-teal-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
                 <div className="text-center">
-                  <h3 className="text-lg font-bold mb-1">{getNativeLanguageValue()}</h3>
+                  <h3 className={`${isSimpleMode ? 'text-3xl' : 'text-lg'} font-bold mb-1`}>{getNativeLanguageValue()}</h3>
                   <p className="text-green-200 text-xs italic">Tap to reveal</p>
                 </div>
                 
@@ -217,10 +222,10 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
             {showEnglishFirst ? (
               <div className="w-full h-full bg-gradient-to-br from-green-500 to-teal-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
                 <div className="text-center">
-                  <h3 className="text-lg font-bold mb-1">{getNativeLanguageValue()}</h3>
-                  <p className="text-green-100 text-xs mb-1">{word.english}</p>
+                  <h3 className={`${isSimpleMode ? 'text-3xl' : 'text-lg'} font-bold mb-1`}>{getNativeLanguageValue()}</h3>
+                  <p className={`text-green-100 ${isSimpleMode ? 'text-lg' : 'text-xs'} mb-1`}>{word.english}</p>
                   {word.example && (
-                    <p className="text-green-200 text-xs italic mb-2">&ldquo;{word.example}&rdquo;</p>
+                    <p className={`text-green-200 ${isSimpleMode ? 'text-base' : 'text-xs'} italic mb-2`}>&ldquo;{word.example}&rdquo;</p>
                   )}
                   <p className="text-green-200 text-xs">Tap to flip back</p>
                 </div>
@@ -281,10 +286,10 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
                 <div className="text-center">
-                  <h3 className="text-lg font-bold mb-1">{word.english}</h3>
-                  <p className="text-blue-100 text-xs mb-1">{getNativeLanguageValue()}</p>
+                  <h3 className={`${isSimpleMode ? 'text-3xl' : 'text-lg'} font-bold mb-1`}>{word.english}</h3>
+                  <p className={`text-blue-100 ${isSimpleMode ? 'text-lg' : 'text-xs'} mb-1`}>{getNativeLanguageValue()}</p>
                   {word.example && (
-                    <p className="text-blue-200 text-xs italic mb-2">&ldquo;{word.example}&rdquo;</p>
+                    <p className={`text-blue-200 ${isSimpleMode ? 'text-base' : 'text-xs'} italic mb-2`}>&ldquo;{word.example}&rdquo;</p>
                   )}
                   <p className="text-blue-200 text-xs">Tap to flip back</p>
                 </div>
@@ -313,8 +318,8 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
         </div>
       </div>
 
-      {/* Rating buttons - only show when card is flipped */}
-      {isFlipped && (
+      {/* Rating buttons - only show when card is flipped and not in simple mode */}
+      {isFlipped && !isSimpleMode && (
         <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 flex gap-2">
           <button
             onClick={() => handleRate("hard")}
@@ -340,8 +345,8 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
         </div>
       )}
 
-      {/* Loading indicator */}
-      {isRating && (
+      {/* Loading indicator - only show when not in simple mode */}
+      {isRating && !isSimpleMode && (
         <div className="absolute -bottom-20 left-1/2 transform -translate-x-1/2 text-center">
           <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
           <p className="text-xs text-gray-600 mt-1">Saving...</p>

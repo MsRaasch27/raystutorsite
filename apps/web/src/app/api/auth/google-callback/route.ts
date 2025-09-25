@@ -16,9 +16,9 @@ export async function POST(request: NextRequest) {
       },
       body: new URLSearchParams({
         code,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback`,
+        redirect_uri: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://enchantedenglish.org'}/auth/callback`,
         grant_type: "authorization_code",
       }),
     });
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tokenData = await tokenResponse.json();
-    const { access_token } = tokenData;
+    const { access_token, id_token } = tokenData;
 
     // Get user info from Google
     const userInfoResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
@@ -71,7 +71,8 @@ export async function POST(request: NextRequest) {
       userId,
       name,
       email,
-      photo: picture 
+      photo: picture,
+      idToken: id_token
     });
 
   } catch (err) {

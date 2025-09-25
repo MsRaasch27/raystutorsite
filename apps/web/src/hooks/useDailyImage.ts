@@ -52,7 +52,7 @@ export function useDailyImage(): UseDailyImageReturn {
       
       // Set fallback image
       setImageData({
-        imageUrl: '/fujimoto.png',
+        imageUrl: '/forestwizardschool.png',
         prompt: 'A magical learning environment',
         source: 'fallback',
         date: new Date().toISOString().split('T')[0],
@@ -72,7 +72,7 @@ export function useDailyImage(): UseDailyImageReturn {
   }, []);
 
   return {
-    imageUrl: imageData?.imageUrl || '/fujimoto.png',
+    imageUrl: imageData?.imageUrl || '/forestwizardschool.png',
     prompt: imageData?.prompt || 'A magical learning environment',
     source: imageData?.source || 'fallback',
     isLoading,

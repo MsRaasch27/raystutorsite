@@ -45,7 +45,7 @@ export default function RestrictionsPage() {
             <div className="mt-8 p-6 bg-gray-50 rounded-lg">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">Contact Information</h3>
               <p className="text-gray-700">
-                For questions about service availability in your region, please contact our site administrator.
+                For questions about service availability in your region, please contact our site administrator: <a href="mailto:admin@enchantedenglish.org" className="text-blue-600 hover:text-blue-800 underline">admin@enchantedenglish.org</a>
               </p>
             </div>
           </div>

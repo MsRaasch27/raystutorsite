@@ -19,7 +19,7 @@ async function testCloudinaryUpload() {
   }
   
   // Test with a simple image (you can use any image file)
-  const testImagePath = path.join(__dirname, 'public', 'fujimoto.png');
+  const testImagePath = path.join(__dirname, 'public', 'forestwizardschool.png');
   
   if (!fs.existsSync(testImagePath)) {
     console.error('❌ Test image not found at:', testImagePath);

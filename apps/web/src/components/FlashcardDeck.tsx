@@ -43,9 +43,18 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
   const [error, setError] = useState<string | null>(null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [showEnglishFirst, setShowEnglishFirst] = useState(true);
+  const [isSimpleMode, setIsSimpleMode] = useState(false);
+  const [currentCardFlipped, setCurrentCardFlipped] = useState(false);
   
   // Get daily background image
   const { imageUrl, prompt, source } = useDailyImage();
+
+  // Detect mobile device and set simple mode as default
+  useEffect(() => {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                     window.innerWidth <= 768;
+    setIsSimpleMode(isMobile);
+  }, []);
 
   // Fetch vocabulary words and progress
   useEffect(() => {
@@ -115,6 +124,17 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
     setActiveCardId(wordId);
   }, []);
 
+  // Simple mode navigation handlers
+  const handleNextCard = useCallback(() => {
+    setCurrentCardIndex((prev) => (prev + 1) % dueCards.length);
+    setCurrentCardFlipped(false); // Reset flip state when moving to next card
+  }, [dueCards.length]);
+
+  const handlePrevCard = useCallback(() => {
+    setCurrentCardIndex((prev) => (prev - 1 + dueCards.length) % dueCards.length);
+    setCurrentCardFlipped(false); // Reset flip state when moving to previous card
+  }, [dueCards.length]);
+
   // Handle card rating
   const handleRate = useCallback(async (wordId: string, difficulty: "easy" | "medium" | "hard") => {
     try {
@@ -158,17 +178,18 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
       }));
 
       // Move to next card
-      if (currentCardIndex < dueCards.length - 1) {
-        setCurrentCardIndex(currentCardIndex + 1);
+      if (isSimpleMode) {
+        setCurrentCardFlipped(false); // Reset flip state before moving to next card
+        handleNextCard();
       } else {
-        // All cards reviewed, reset to beginning
-        setCurrentCardIndex(0);
+        // Remove the card from active cards (it will be scheduled for later review)
+        setActiveCardId(null);
       }
     } catch (err) {
       console.error("Error rating card:", err);
       throw err;
     }
-  }, [userId, progress, currentCardIndex, dueCards.length]);
+  }, [userId, progress, isSimpleMode, handleNextCard]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -276,6 +297,28 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
           </span>
         </div>
         
+        {/* Interface Toggle */}
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <span className={`text-sm font-medium ${!isSimpleMode ? 'text-purple-600' : 'text-gray-500'}`}>
+            Scattered
+          </span>
+          <button
+            onClick={() => setIsSimpleMode(!isSimpleMode)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+              isSimpleMode ? 'bg-purple-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                isSimpleMode ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+          <span className={`text-sm font-medium ${isSimpleMode ? 'text-purple-600' : 'text-gray-500'}`}>
+            Simple
+          </span>
+        </div>
+        
         {/* Stats */}
         <div className="grid grid-cols-4 gap-2 text-xs">
           <div className="text-center">
@@ -297,49 +340,120 @@ export function FlashcardDeck({ userId }: FlashcardDeckProps) {
         </div>
       </div>
 
-      {/* Scattered Card Pile */}
-      <div 
-        className="relative h-96 overflow-visible rounded-lg p-12"
-        style={{
-          backgroundImage: `url(${imageUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
-        }}
-      >
-        <div className="relative w-full h-full">
-          {dueCards.map((card, index) => {
-            // Generate random positions and rotations for each card
-            // Keep cards more centered to avoid edge cutoff issues
-            const randomX = Math.random() * 50 + 20; // 20% to 70% from left
-            const randomY = Math.random() * 50 + 20; // 20% to 70% from top
-            const randomRotation = (Math.random() - 0.5) * 60; // -30 to +30 degrees
-            const isActive = activeCardId === card.id;
-            
-            return (
-              <div
-                key={card.id}
-                className="absolute transition-all duration-300 ease-in-out"
-                style={{
-                  left: `${randomX}%`,
-                  top: `${randomY}%`,
-                  transform: `rotate(${randomRotation}deg)`,
-                  zIndex: isActive ? 1000 : index + 1, // High z-index when active
+      {/* Card Interface */}
+      {isSimpleMode ? (
+        /* Simple Mode - Single Card */
+        <div className="flex flex-col items-center space-y-6">
+          {/* Card Counter */}
+          <div className="text-center">
+            <span className="text-lg font-semibold text-gray-700">
+              Card {currentCardIndex + 1} of {dueCards.length}
+            </span>
+          </div>
+          
+          {/* Single Card */}
+          {dueCards.length > 0 && (
+            <div className="w-full max-w-2xl mx-auto">
+              <Flashcard
+                word={dueCards[currentCardIndex]}
+                user={user!}
+                onRate={handleRate}
+                progress={progress[dueCards[currentCardIndex].id]}
+                showEnglishFirst={showEnglishFirst}
+                isSimpleMode={true}
+                onFlip={(isFlipped) => {
+                  // Track if card is flipped to show rating buttons
+                  setCurrentCardFlipped(isFlipped);
                 }}
+              />
+            </div>
+          )}
+          
+          {/* Rating buttons - only show when card is flipped */}
+          {currentCardFlipped && dueCards.length > 0 && (
+            <div className="flex justify-center gap-3 mb-4">
+              <button
+                onClick={() => handleRate(dueCards[currentCardIndex].id, "hard")}
+                className="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors"
               >
-                <Flashcard
-                  word={card}
-                  user={user!}
-                  onRate={handleRate}
-                  progress={progress[card.id]}
-                  onActivate={handleCardActivate}
-                  showEnglishFirst={showEnglishFirst}
-                />
-              </div>
-            );
-          })}
+                ❌ Hard
+              </button>
+              <button
+                onClick={() => handleRate(dueCards[currentCardIndex].id, "medium")}
+                className="bg-yellow-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors"
+              >
+                ⚡ Medium
+              </button>
+              <button
+                onClick={() => handleRate(dueCards[currentCardIndex].id, "easy")}
+                className="bg-green-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-600 transition-colors"
+              >
+                ✅ Easy
+              </button>
+            </div>
+          )}
+          
+          {/* Navigation Controls */}
+          <div className="flex gap-4">
+            <button
+              onClick={handlePrevCard}
+              className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+            >
+              ← Previous
+            </button>
+            <button
+              onClick={handleNextCard}
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600 transition-colors"
+            >
+              Next →
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Scattered Mode - Multiple Cards with Background */
+        <div 
+          className="relative h-96 overflow-visible rounded-lg p-12"
+          style={{
+            backgroundImage: `url(${imageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
+          }}
+        >
+          <div className="relative w-full h-full">
+            {dueCards.map((card, index) => {
+              // Generate random positions and rotations for each card
+              // Keep cards more centered to avoid edge cutoff issues
+              const randomX = Math.random() * 50 + 20; // 20% to 70% from left
+              const randomY = Math.random() * 50 + 20; // 20% to 70% from top
+              const randomRotation = (Math.random() - 0.5) * 60; // -30 to +30 degrees
+              const isActive = activeCardId === card.id;
+              
+              return (
+                <div
+                  key={card.id}
+                  className="absolute transition-all duration-300 ease-in-out"
+                  style={{
+                    left: `${randomX}%`,
+                    top: `${randomY}%`,
+                    transform: `rotate(${randomRotation}deg)`,
+                    zIndex: isActive ? 1000 : index + 1, // High z-index when active
+                  }}
+                >
+                  <Flashcard
+                    word={card}
+                    user={user!}
+                    onRate={handleRate}
+                    progress={progress[card.id]}
+                    onActivate={handleCardActivate}
+                    showEnglishFirst={showEnglishFirst}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

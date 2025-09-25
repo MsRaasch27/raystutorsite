@@ -39,6 +39,7 @@ app.use(
       "http://localhost:5000",
       "https://raystutorsite.web.app",
       "https://raystutorsite.firebaseapp.com",
+      "https://enchantedenglish.org",
     ],
     credentials: true,
   })
@@ -87,15 +88,14 @@ app.post("/api/save-selected-creature", async (req: Request, res: Response) => {
       });
     }
 
-    // TODO: Save the selected creature to Firestore
-    // For now, we'll just return success
-    // You can implement this with Firestore:
-    // await admin.firestore().collection('users').doc(userId).update({
-    //   selectedCreature: creatureId,
-    //   creatureSelectedAt: admin.firestore.FieldValue.serverTimestamp()
-    // });
+    // Save the selected creature to Firestore
+    await db.collection("users").doc(userId.toLowerCase()).update({
+      selectedCreature: creatureId,
+      creatureSelectedAt: new Date(),
+      updatedAt: new Date(),
+    });
 
-    console.log(`Saving selected creature ${creatureId} for user ${userId}`);
+    console.log(`Saved selected creature ${creatureId} for user ${userId}`);
 
     return res.json({
       success: true,
@@ -198,7 +198,7 @@ app.post("/oauth/callback", async (req: Request, res: Response) => {
         code: decodedCode,
         client_id: process.env.GOOGLE_OAUTH_CLIENT_ID!,
         client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET!,
-        redirect_uri: "https://raystutorsite.web.app/auth/callback",
+        redirect_uri: "https://enchantedenglish.org/auth/callback",
         grant_type: "authorization_code",
       }),
     });
@@ -1022,6 +1022,20 @@ apiRouter.post(
 
       if (!english) {
         return res.status(400).json({ error: "English word is required" });
+      }
+
+      // Check if word already exists
+      const existingVocabQuery = await db.collection("users")
+        .doc(id)
+        .collection("vocabulary")
+        .where("english", "==", english.trim())
+        .get();
+
+      if (!existingVocabQuery.empty) {
+        return res.status(409).json({
+          error: "duplicate",
+          message: `The word "${english.trim()}" already exists in your vocabulary`,
+        });
       }
 
       // Get user data to find native language
@@ -2267,9 +2281,26 @@ apiRouter.post("/lessons/:lessonId/add-vocabulary", async (req: Request, res: Re
 
     const now = new Date();
     let translatedCount = 0;
+    let addedCount = 0;
+    let duplicateCount = 0;
+    const duplicates: string[] = [];
 
     // Create vocabulary documents in Firestore
     const vocabularyPromises = vocabulary.map(async (word: string) => {
+      // Check if word already exists
+      const existingVocabQuery = await db.collection("users")
+        .doc(studentId)
+        .collection("vocabulary")
+        .where("english", "==", word.trim())
+        .get();
+
+      if (!existingVocabQuery.empty) {
+        console.log(`Word "${word.trim()}" already exists for student ${studentId}, skipping...`);
+        duplicateCount++;
+        duplicates.push(word.trim());
+        return null; // Skip this word
+      }
+
       let nativeTranslation = "";
 
       try {
@@ -2300,26 +2331,201 @@ apiRouter.post("/lessons/:lessonId/add-vocabulary", async (req: Request, res: Re
         updatedAt: now,
       };
 
-      return db.collection("users")
+      const docRef = await db.collection("users")
         .doc(studentId)
         .collection("vocabulary")
         .add(vocabularyData);
+
+      addedCount++;
+      return docRef;
     });
 
     await Promise.all(vocabularyPromises);
-    console.log(`Added ${vocabulary.length} vocabulary items to Firestore for student ${studentId}`);
+
+    console.log(`Added ${addedCount} new vocabulary items to Firestore for student ${studentId}`);
+    if (duplicateCount > 0) {
+      console.log(`Skipped ${duplicateCount} duplicate words: ${duplicates.join(", ")}`);
+    }
 
     return res.json({
       success: true,
       lessonId,
       studentId,
-      added: vocabulary.length,
+      added: addedCount,
+      skipped: duplicateCount,
+      duplicates: duplicates,
       translated: translatedCount,
-      message: `Successfully added ${vocabulary.length} vocabulary words to student's Firestore collection`,
+      message: `Successfully added ${addedCount} new vocabulary words to student's Firestore collection${duplicateCount > 0 ? ` (${duplicateCount} duplicates skipped)` : ""}`,
     });
   } catch (err) {
     console.error("Add vocabulary error:", err);
     return res.status(500).json({ error: "Failed to add vocabulary" });
+  }
+});
+
+// Import vocabulary from Google Spreadsheet
+apiRouter.post("/users/:id/vocabulary/import", async (req: Request, res: Response) => {
+  try {
+    const id = decodeURIComponent(req.params.id).trim().toLowerCase();
+    const { sheetId } = req.body || {};
+
+    if (!sheetId) {
+      return res.status(400).json({ error: "Sheet ID is required" });
+    }
+
+    // Get user data to find native language
+    const userSnap = await db.collection("users").doc(id).get();
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userData = userSnap.data();
+    const nativeLanguage = userData?.natLang;
+
+    if (!nativeLanguage) {
+      return res.status(400).json({ error: "User's native language not found" });
+    }
+
+    // Get Google Sheets API client
+    const authClient = await getRobustGoogleClient([
+      "https://www.googleapis.com/auth/spreadsheets.readonly",
+      "https://www.googleapis.com/auth/cloud-translation",
+    ]);
+    const sheets = google.sheets({ version: "v4", auth: authClient });
+
+    // Read spreadsheet data
+    console.log(`Reading spreadsheet ${sheetId} for user ${id}`);
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: "A:C", // English, Native Language, Example columns
+    });
+
+    const rows = response.data.values || [];
+    if (rows.length < 2) {
+      return res.status(400).json({ error: "Spreadsheet must have at least a header row and one data row" });
+    }
+
+    // Skip header row and process data
+    const dataRows = rows.slice(1);
+    let importedCount = 0;
+    let skippedCount = 0;
+    const skippedWords: string[] = [];
+
+    // Map language names to language codes for translation
+    const languageCodeMap: Record<string, string> = {
+      "Spanish": "es",
+      "French": "fr",
+      "German": "de",
+      "Italian": "it",
+      "Portuguese": "pt",
+      "Russian": "ru",
+      "Japanese": "ja",
+      "Korean": "ko",
+      "Chinese": "zh",
+      "Arabic": "ar",
+      "Hindi": "hi",
+      "Thai": "th",
+      "Vietnamese": "vi",
+      "Indonesian": "id",
+      "Dutch": "nl",
+      "Swedish": "sv",
+      "Norwegian": "no",
+      "Danish": "da",
+      "Finnish": "fi",
+      "Polish": "pl",
+      "Czech": "cs",
+      "Hungarian": "hu",
+      "Turkish": "tr",
+      "Greek": "el",
+      "Hebrew": "he",
+      "Persian": "fa",
+      "Urdu": "ur",
+      "Bengali": "bn",
+      "Tamil": "ta",
+      "Telugu": "te",
+      "Marathi": "mr",
+      "Gujarati": "gu",
+      "Kannada": "kn",
+      "Malayalam": "ml",
+      "Punjabi": "pa",
+    };
+
+    const targetLanguage = languageCodeMap[nativeLanguage] || "es";
+    const translate = google.translate({ version: "v2", auth: authClient });
+
+    // Process each row
+    for (const row of dataRows) {
+      const english = row[0]?.trim();
+      if (!english) continue; // Skip rows without English word
+
+      // Check if word already exists
+      const existingVocabQuery = await db.collection("users")
+        .doc(id)
+        .collection("vocabulary")
+        .where("english", "==", english)
+        .get();
+
+      if (!existingVocabQuery.empty) {
+        console.log(`Word "${english}" already exists for user ${id}, skipping...`);
+        skippedCount++;
+        skippedWords.push(english);
+        continue;
+      }
+
+      let nativeTranslation = row[1]?.trim() || "";
+
+      // If no native translation provided, use Google Translate
+      if (!nativeTranslation) {
+        try {
+          console.log(`Translating "${english}" to ${targetLanguage}...`);
+          const translationResponse = await translate.translations.translate({
+            requestBody: {
+              q: [english],
+              target: targetLanguage,
+              source: "en",
+            },
+          });
+          nativeTranslation = (translationResponse.data as any).data?.translations?.[0]?.translatedText || "";
+          console.log(`Translated "${english}" to "${nativeTranslation}"`);
+        } catch (translationError) {
+          console.error(`Error translating "${english}":`, translationError);
+          nativeTranslation = ""; // Empty string if translation fails
+        }
+      }
+
+      const example = row[2]?.trim() || "";
+      const now = new Date();
+
+      // Create vocabulary document in Firestore
+      const vocabularyData = {
+        english: english,
+        [nativeLanguage]: nativeTranslation,
+        example: example,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await db.collection("users")
+        .doc(id)
+        .collection("vocabulary")
+        .add(vocabularyData);
+
+      importedCount++;
+      console.log(`Imported word "${english}" for user ${id}`);
+    }
+
+    console.log(`Import completed for user ${id}: ${importedCount} imported, ${skippedCount} skipped`);
+
+    return res.json({
+      success: true,
+      imported: importedCount,
+      skipped: skippedCount,
+      skippedWords: skippedWords,
+      message: `Successfully imported ${importedCount} new vocabulary words${skippedCount > 0 ? ` (${skippedCount} duplicates skipped)` : ""}`,
+    });
+  } catch (err) {
+    console.error("Import vocabulary error:", err);
+    return res.status(500).json({ error: "Failed to import vocabulary from spreadsheet" });
   }
 });
 

@@ -23,7 +23,7 @@ export default function CancellationPage() {
               <div className="border-l-4 border-blue-500 pl-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-2">How to Cancel</h3>
                 <p className="text-gray-700">
-                  Cancel anytime by emailing our site admin. Cancellations take effect at the end of the current billing cycle; no automatic prorated refunds unless stated in our Refund Policy.
+                  Cancel anytime by emailing our site admin: <a href="mailto:admin@enchantedenglish.org" className="text-blue-600 hover:text-blue-800 underline">admin@enchantedenglish.org</a>. Cancellations take effect at the end of the current billing cycle; no automatic prorated refunds unless stated in our Refund Policy.
                 </p>
               </div>
 
@@ -41,7 +41,7 @@ export default function CancellationPage() {
             <div className="mt-8 p-6 bg-gray-50 rounded-lg">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">Contact Information</h3>
               <p className="text-gray-700">
-                To cancel your subscription, please email our site administrator with your account details.
+                To cancel your subscription, please email our site administrator with your account details: <a href="mailto:admin@enchantedenglish.org" className="text-blue-600 hover:text-blue-800 underline">admin@enchantedenglish.org</a>
               </p>
             </div>
           </div>

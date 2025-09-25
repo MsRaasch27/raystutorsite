@@ -29,6 +29,8 @@ type User = {
   email: string;
   goals?: string | null;
   timezone?: string | null;
+  selectedCreature?: string | null;
+  creatureSelectedAt?: string | null;
   billing?: { active?: boolean } | null;
   lessonsLibrarySheetId?: string | null; // For teacher reference only
   cefrLevels?: {
@@ -125,7 +127,55 @@ export function StudentPageClient({
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showAnimalFamiliarPopup, setShowAnimalFamiliarPopup] = useState(false);
   const [showCreatureSelection, setShowCreatureSelection] = useState(false);
-  const [selectedCreature, setSelectedCreature] = useState<string | null>(null);
+  const [selectedCreature, setSelectedCreature] = useState<string | null>(user.selectedCreature || null);
+  
+  // Animation states for creature hopping
+  const [creatureAnimation, setCreatureAnimation] = useState<'idle' | 'hopping' | 'wiggling'>('idle');
+  const [previousTab, setPreviousTab] = useState<TabType | null>(null);
+  const [creaturePosition, setCreaturePosition] = useState<{ x: number; y: number } | null>(null);
+  const [hopDirection, setHopDirection] = useState<string>('');
+
+  // Animated tab change function
+  const handleAnimatedTabChange = useCallback((newTab: TabType) => {
+    if (newTab === activeTab || !selectedCreature) {
+      setActiveTab(newTab);
+      return;
+    }
+
+    // Determine the hop direction based on current and new tab
+    let direction = '';
+    if (activeTab === 'past' && newTab === 'upcoming') {
+      direction = 'center-right';
+    } else if (activeTab === 'past' && newTab === 'practice') {
+      direction = 'right';
+    } else if (activeTab === 'upcoming' && newTab === 'past') {
+      direction = 'center-left';
+    } else if (activeTab === 'upcoming' && newTab === 'practice') {
+      direction = 'center-right';
+    } else if (activeTab === 'practice' && newTab === 'upcoming') {
+      direction = 'center-left';
+    } else if (activeTab === 'practice' && newTab === 'past') {
+      direction = 'left';
+    }
+
+    // Start arc hopping animation
+    setCreatureAnimation('hopping');
+    setHopDirection(direction);
+    setPreviousTab(activeTab);
+
+    // After arc hopping animation, change tab and start wiggling
+    setTimeout(() => {
+      setActiveTab(newTab);
+      setCreatureAnimation('wiggling');
+      
+      // After wiggling, return to idle
+      setTimeout(() => {
+        setCreatureAnimation('idle');
+        setHopDirection('');
+        setPreviousTab(null);
+      }, 600); // Wiggle duration
+    }, 800); // Arc hop duration - matches CSS transition duration
+  }, [activeTab, selectedCreature]);
   const [isSelectingCreature, setIsSelectingCreature] = useState(false);
   const [cameFromAnimalFamiliar, setCameFromAnimalFamiliar] = useState(false);
   const [preSelectPlan, setPreSelectPlan] = useState<string | undefined>(undefined);
@@ -144,6 +194,13 @@ export function StudentPageClient({
       setShowAnimalFamiliarPopup(true);
     }
   }, [locked, showAnimalFamiliarPopup, showCreatureSelection]);
+
+  // Update selectedCreature when user data changes
+  useEffect(() => {
+    if (user.selectedCreature && user.selectedCreature !== selectedCreature) {
+      setSelectedCreature(user.selectedCreature);
+    }
+  }, [user.selectedCreature, selectedCreature]);
 
   // Show creature selection for subscribed users who haven't selected a creature yet
   useEffect(() => {
@@ -694,34 +751,6 @@ export function StudentPageClient({
               </div>
             </div>
 
-            {/* Selected Creature Display */}
-            {selectedCreature && (
-              <div className="mb-8">
-                <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-4 border-2 border-purple-200">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md">
-                      <img
-                        src={`/${selectedCreature}.png`}
-                        alt="Selected Creature"
-                        className="w-12 h-12 object-contain"
-                        onError={(e) => {
-                          // Fallback to emoji if image doesn't exist
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          target.parentElement!.innerHTML = '<div class="text-2xl">🦄</div>';
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-800">Your Animal Familiar</h3>
-                      <p className="text-sm text-gray-600">
-                        Your magical learning companion is here to guide your journey!
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Interactive Flashcard Deck */}
             <div className="mb-8">
@@ -982,10 +1011,10 @@ export function StudentPageClient({
       <section className="max-w-6xl mx-auto px-6 pb-8 relative rounded-2xl" style={{ backgroundColor: '#475037' }}>
         {/* Navigation Buttons */}
         <div className="py-6">
-          <div className="flex flex-col sm:flex-row gap-4 sm:justify-center">
+          <div className="flex flex-col sm:flex-row gap-4">
             <button 
-              onClick={() => setActiveTab('past')}
-              className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:w-[200px] ${
+              onClick={() => handleAnimatedTabChange('past')}
+              className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:flex-1 ${
                 activeTab === 'past' 
                   ? 'ring-4 ring-amber-400 ring-opacity-50 scale-105' 
                   : 'hover:scale-105 hover:shadow-lg'
@@ -999,17 +1028,19 @@ export function StudentPageClient({
               }}
             >
               <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                <span className={`font-bold text-lg transition-colors ${
-                  activeTab === 'past' ? 'text-amber-200' : 'text-white'
-                }`}>
-                  Past Lessons
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`font-bold text-lg transition-colors ${
+                    activeTab === 'past' ? 'text-amber-200' : 'text-white'
+                  }`}>
+                    Past Lessons
+                  </span>
+                </div>
               </div>
             </button>
             
             <button 
-              onClick={() => setActiveTab('upcoming')}
-              className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:w-[200px] ${
+              onClick={() => handleAnimatedTabChange('upcoming')}
+              className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:flex-1 ${
                 activeTab === 'upcoming' 
                   ? 'ring-4 ring-amber-400 ring-opacity-50 scale-105' 
                   : 'hover:scale-105 hover:shadow-lg'
@@ -1023,17 +1054,19 @@ export function StudentPageClient({
               }}
             >
               <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                <span className={`font-bold text-lg transition-colors ${
-                  activeTab === 'upcoming' ? 'text-amber-200' : 'text-white'
-                }`}>
-                  Upcoming Lessons
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`font-bold text-lg transition-colors ${
+                    activeTab === 'upcoming' ? 'text-amber-200' : 'text-white'
+                  }`}>
+                    Upcoming Lessons
+                  </span>
+                </div>
               </div>
             </button>
             
             <button 
-              onClick={() => setActiveTab('practice')}
-              className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:w-[200px] ${
+              onClick={() => handleAnimatedTabChange('practice')}
+              className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:flex-1 ${
                 activeTab === 'practice' 
                   ? 'ring-4 ring-amber-400 ring-opacity-50 scale-105' 
                   : 'hover:scale-105 hover:shadow-lg'
@@ -1047,15 +1080,54 @@ export function StudentPageClient({
               }}
             >
               <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                <span className={`font-bold text-lg transition-colors ${
-                  activeTab === 'practice' ? 'text-amber-200' : 'text-white'
-                }`}>
-                  Practice
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`font-bold text-lg transition-colors ${
+                    activeTab === 'practice' ? 'text-amber-200' : 'text-white'
+                  }`}>
+                    Practice
+                  </span>
+                </div>
               </div>
             </button>
           </div>
         </div>
+
+        {/* Floating Creature */}
+        {selectedCreature && (
+          <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-10">
+            <div className={`absolute transition-all duration-800 ${
+              activeTab === 'past' ? 'left-[16.67%]' : 
+              activeTab === 'upcoming' ? 'left-[50%]' : 
+              'left-[83.33%]'
+            } -top-28 transform -translate-x-1/2`}>
+              <div className={`w-44 h-44 transition-all duration-500 ${
+                creatureAnimation === 'hopping' ? 
+                  hopDirection === 'right' ? 'animate-creature-arc-hop-right' :
+                  hopDirection === 'left' ? 'animate-creature-arc-hop-left' :
+                  hopDirection === 'center-right' ? 'animate-creature-arc-hop-center-right' :
+                  hopDirection === 'center-left' ? 'animate-creature-arc-hop-center-left' :
+                  'animate-creature-arc-hop-right' : // fallback
+                creatureAnimation === 'wiggling' ? 'animate-creature-wiggle' : ''
+              }`}>
+                {/* Golden glow background */}
+                <div className="absolute inset-0 rounded-full blur-sm" style={{
+                  background: 'radial-gradient(circle, rgba(251, 191, 36, 0.4) 0%, rgba(252, 211, 77, 0.2) 50%, transparent 100%)'
+                }}></div>
+                <img
+                  src={`/${selectedCreature}.png`}
+                  alt="Selected Creature"
+                  className="relative w-full h-full object-contain drop-shadow-lg"
+                  onError={(e) => {
+                    // Hide the creature if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className={locked ? "pointer-events-none opacity-50" : ""}>
           <div className="bg-white rounded-b-xl shadow-lg p-6">
             {tabContent}
