@@ -138,6 +138,23 @@ export function StudentPageClient({
   
   // State for persistent star on creature
   const [showStarOnCreature, setShowStarOnCreature] = useState(false);
+  
+  // State for thought bubble
+  const [showThoughtBubble, setShowThoughtBubble] = useState(false);
+  const [thoughtBubbleMessage, setThoughtBubbleMessage] = useState('');
+  const [isHoveringCreature, setIsHoveringCreature] = useState(false);
+  
+  // Helpful messages for hover tooltips
+  const helpfulMessages = [
+    "Complete flashcards to win stars!",
+    "Check your Past Lessons for homework assignments!",
+    "Visit Settings to customize your flashcard intervals!",
+    "Stars can be used to purchase special items!",
+    "Practice regularly to improve your English skills!",
+    "Your creature loves when you complete your daily reviews!",
+    "Try switching between Thai and English in flashcards!",
+    "Use the Simple view for focused practice sessions!"
+  ];
 
   // Load star state from localStorage on component mount
   useEffect(() => {
@@ -154,6 +171,15 @@ export function StudentPageClient({
   // Handle reward animation completion - show star on creature
   const handleRewardAnimationComplete = useCallback(() => {
     setShowStarOnCreature(true);
+    // Show thought bubble with star message
+    setThoughtBubbleMessage("Thanks for the star! I can use stars to purchase items!");
+    setShowThoughtBubble(true);
+    
+    // Hide thought bubble after 4 seconds
+    setTimeout(() => {
+      setShowThoughtBubble(false);
+    }, 4000);
+    
     // Persist to localStorage
     const today = new Date().toDateString();
     localStorage.setItem(`starOnCreature_${user.id}`, JSON.stringify({
@@ -169,8 +195,30 @@ export function StudentPageClient({
     localStorage.removeItem(`starOnCreature_${user.id}`);
   }, [user.id]);
 
+  // Handle creature hover - show random helpful message
+  const handleCreatureHover = useCallback(() => {
+    setIsHoveringCreature(true);
+    const randomMessage = helpfulMessages[Math.floor(Math.random() * helpfulMessages.length)];
+    setThoughtBubbleMessage(randomMessage);
+    setShowThoughtBubble(true);
+  }, [helpfulMessages]);
+
+  // Handle creature hover end
+  const handleCreatureHoverEnd = useCallback(() => {
+    setIsHoveringCreature(false);
+    setShowThoughtBubble(false);
+  }, []);
+
+  // Handle creature click - hide thought bubble
+  const handleCreatureClick = useCallback(() => {
+    setShowThoughtBubble(false);
+  }, []);
+
   // Animated tab change function
   const handleAnimatedTabChange = useCallback((newTab: TabType) => {
+    // Hide thought bubble when switching tabs
+    setShowThoughtBubble(false);
+    
     if (newTab === activeTab || !selectedCreature) {
       setActiveTab(newTab);
       return;
@@ -1238,15 +1286,21 @@ export function StudentPageClient({
               activeTab === 'upcoming' ? 'left-[50%]' : 
               'left-[83.33%]'
             } -top-28 transform -translate-x-1/2`}>
-              <div className={`w-44 h-44 transition-all duration-500 ${
-                creatureAnimation === 'hopping' ? 
-                  hopDirection === 'right' ? 'animate-creature-arc-hop-right' :
-                  hopDirection === 'left' ? 'animate-creature-arc-hop-left' :
-                  hopDirection === 'center-right' ? 'animate-creature-arc-hop-center-right' :
-                  hopDirection === 'center-left' ? 'animate-creature-arc-hop-center-left' :
-                  'animate-creature-arc-hop-right' : // fallback
-                creatureAnimation === 'wiggling' ? 'animate-creature-wiggle' : ''
-              }`}>
+              <div 
+                className={`w-44 h-44 transition-all duration-500 cursor-pointer ${
+                  creatureAnimation === 'hopping' ? 
+                    hopDirection === 'right' ? 'animate-creature-arc-hop-right' :
+                    hopDirection === 'left' ? 'animate-creature-arc-hop-left' :
+                    hopDirection === 'center-right' ? 'animate-creature-arc-hop-center-right' :
+                    hopDirection === 'center-left' ? 'animate-creature-arc-hop-center-left' :
+                    'animate-creature-arc-hop-right' : // fallback
+                  creatureAnimation === 'wiggling' ? 'animate-creature-wiggle' : ''
+                }`}
+                onMouseEnter={handleCreatureHover}
+                onMouseLeave={handleCreatureHoverEnd}
+                onClick={handleCreatureClick}
+                style={{ pointerEvents: 'auto' }}
+              >
                 {/* Golden glow background */}
                 <div className="absolute inset-0 rounded-full blur-sm" style={{
                   background: 'radial-gradient(circle, rgba(251, 191, 36, 0.4) 0%, rgba(252, 211, 77, 0.2) 50%, transparent 100%)'
@@ -1284,6 +1338,21 @@ export function StudentPageClient({
                   </div>
                 )}
               </div>
+              
+              {/* Thought Bubble */}
+              {showThoughtBubble && (
+                <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 z-30 pointer-events-none">
+                  <div className="bg-white rounded-lg shadow-lg border-2 border-gray-200 p-3 max-w-xs">
+                    <div className="text-sm text-gray-800 text-center font-medium">
+                      {thoughtBubbleMessage}
+                    </div>
+                    {/* Speech bubble tail */}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2">
+                      <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

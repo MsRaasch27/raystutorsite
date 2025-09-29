@@ -116,7 +116,7 @@ export function FlashcardDeck({ userId, activeTab = 'practice', onRewardComplete
     };
 
     checkAndResetDailyCounters();
-  }, [onReset]);
+  }, []); // Remove onReset from dependencies to prevent infinite re-runs
 
   // Detect mobile device and set simple mode as default
   useEffect(() => {
