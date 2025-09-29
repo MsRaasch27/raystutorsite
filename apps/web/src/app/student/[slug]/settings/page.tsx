@@ -12,6 +12,12 @@ type User = {
   subscriptionPlan?: string | null;
 };
 
+type CustomIntervals = {
+  easy: number; // days
+  medium: number; // days
+  hard: number; // days
+};
+
 export default function SettingsPage() {
   const params = useParams();
   const router = useRouter();
@@ -19,8 +25,53 @@ export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [customIntervals, setCustomIntervals] = useState<CustomIntervals>({
+    easy: 7, // Default: 7 days
+    medium: 3, // Default: 3 days
+    hard: 1, // Default: 1 day
+  });
+  const [isSavingIntervals, setIsSavingIntervals] = useState(false);
 
   const studentSlug = params.slug as string;
+
+  const saveCustomIntervals = async () => {
+    if (!user) return;
+    
+    setIsSavingIntervals(true);
+    try {
+      const response = await fetch('/api/student/custom-intervals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.email,
+          intervals: customIntervals,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save custom intervals');
+      }
+
+      // Show success message (you could add a toast notification here)
+      console.log('Custom intervals saved successfully');
+      setError(null); // Clear any previous errors
+    } catch (error) {
+      console.error('Error saving custom intervals:', error);
+      // Fallback to localStorage
+      try {
+        localStorage.setItem(`customIntervals_${user.email}`, JSON.stringify(customIntervals));
+        console.log('Custom intervals saved to localStorage as fallback');
+        setError(null); // Clear error since fallback worked
+      } catch (localStorageError) {
+        console.error('Error saving to localStorage:', localStorageError);
+        setError('Failed to save custom intervals. Please try again.');
+      }
+    } finally {
+      setIsSavingIntervals(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading && !authUser) {
@@ -47,6 +98,41 @@ export default function SettingsPage() {
       setIsLoading(false);
     }
   }, [authUser, loading, studentSlug, router]);
+
+  // Load custom intervals when user is available
+  useEffect(() => {
+    const loadCustomIntervals = async () => {
+      if (!user) return;
+
+      try {
+        const response = await fetch(`/api/student/custom-intervals?userId=${encodeURIComponent(user.email)}&t=${Date.now()}`);
+        if (response.ok) {
+          const data = await response.json();
+          setCustomIntervals(data.intervals);
+          console.log('Loaded custom intervals from API:', data.intervals);
+        } else {
+          throw new Error(`API request failed with status: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error loading custom intervals from API:', error);
+        // Fallback to localStorage
+        try {
+          const stored = localStorage.getItem(`customIntervals_${user.email}`);
+          if (stored) {
+            const parsedIntervals = JSON.parse(stored);
+            setCustomIntervals(parsedIntervals);
+            console.log('Loaded custom intervals from localStorage as fallback:', parsedIntervals);
+          } else {
+            console.log('No stored custom intervals found, using defaults');
+          }
+        } catch (localStorageError) {
+          console.error('Error loading from localStorage:', localStorageError);
+        }
+      }
+    };
+
+    loadCustomIntervals();
+  }, [user]);
 
   if (loading || isLoading) {
     return (
@@ -209,6 +295,107 @@ export default function SettingsPage() {
                   <input type="checkbox" className="sr-only peer" defaultChecked />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Flashcard Settings Section */}
+          <div className="mb-8">
+            <h3 className="text-xl font-semibold text-gray-700 mb-4">Flashcard Review Intervals</h3>
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6">
+              <p className="text-gray-600 mb-6">
+                Customize how often you want to review flashcards based on how well you know them. 
+                These intervals determine when a flashcard will appear again in your review queue.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Easy Rating */}
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="flex items-center mb-3">
+                    <span className="text-2xl mr-2">😊</span>
+                    <h4 className="font-semibold text-gray-800">Easy</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">
+                    When you know the word well
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={customIntervals.easy}
+                      onChange={(e) => setCustomIntervals(prev => ({
+                        ...prev,
+                        easy: parseInt(e.target.value) || 1
+                      }))}
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-gray-900 font-semibold"
+                    />
+                    <span className="text-sm text-gray-600">days</span>
+                  </div>
+                </div>
+
+                {/* Medium Rating */}
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="flex items-center mb-3">
+                    <span className="text-2xl mr-2">😐</span>
+                    <h4 className="font-semibold text-gray-800">Medium</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">
+                    When you somewhat know the word
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={customIntervals.medium}
+                      onChange={(e) => setCustomIntervals(prev => ({
+                        ...prev,
+                        medium: parseInt(e.target.value) || 1
+                      }))}
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-gray-900 font-semibold"
+                    />
+                    <span className="text-sm text-gray-600">days</span>
+                  </div>
+                </div>
+
+                {/* Hard Rating */}
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="flex items-center mb-3">
+                    <span className="text-2xl mr-2">😰</span>
+                    <h4 className="font-semibold text-gray-800">Hard</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-3">
+                    When you don&apos;t know the word well
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={customIntervals.hard}
+                      onChange={(e) => setCustomIntervals(prev => ({
+                        ...prev,
+                        hard: parseInt(e.target.value) || 1
+                      }))}
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-gray-900 font-semibold"
+                    />
+                    <span className="text-sm text-gray-600">days</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  <p><strong>Tip:</strong> Shorter intervals for harder words help with retention, while longer intervals for easy words prevent over-reviewing.</p>
+                </div>
+                <button
+                  onClick={saveCustomIntervals}
+                  disabled={isSavingIntervals}
+                  className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-green-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSavingIntervals ? 'Saving...' : 'Save Intervals'}
+                </button>
               </div>
             </div>
           </div>

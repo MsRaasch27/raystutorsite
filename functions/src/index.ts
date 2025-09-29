@@ -39,7 +39,6 @@ app.use(
       "http://localhost:5000",
       "https://raystutorsite.web.app",
       "https://raystutorsite.firebaseapp.com",
-      "https://enchantedenglish.org",
     ],
     credentials: true,
   })
@@ -198,7 +197,7 @@ app.post("/oauth/callback", async (req: Request, res: Response) => {
         code: decodedCode,
         client_id: process.env.GOOGLE_OAUTH_CLIENT_ID!,
         client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET!,
-        redirect_uri: "https://enchantedenglish.org/auth/callback",
+        redirect_uri: "https://raystutorsite.web.app/auth/callback",
         grant_type: "authorization_code",
       }),
     });

@@ -8,6 +8,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing authorization code" }, { status: 400 });
     }
 
+    // Debug environment variables
+    console.log("Environment check:", {
+      hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+      hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+      baseUrl: process.env.NEXT_PUBLIC_BASE_URL,
+      clientIdLength: process.env.GOOGLE_CLIENT_ID?.length || 0
+    });
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://enchantedenglish.org';
+    const redirectUri = `${baseUrl}/auth/callback`;
+
+    if (!clientId || !clientSecret) {
+      console.error("Missing Google OAuth credentials");
+      return NextResponse.json({ error: "OAuth configuration error" }, { status: 500 });
+    }
+
+    console.log("Token exchange request:", {
+      code: code.substring(0, 10) + "...",
+      clientId: clientId.substring(0, 10) + "...",
+      redirectUri
+    });
+
     // Exchange authorization code for access token
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -16,20 +40,29 @@ export async function POST(request: NextRequest) {
       },
       body: new URLSearchParams({
         code,
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://enchantedenglish.org'}/auth/callback`,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
         grant_type: "authorization_code",
       }),
     });
 
     if (!tokenResponse.ok) {
-      console.error("Token exchange failed:", await tokenResponse.text());
-      return NextResponse.json({ error: "Failed to exchange code for token" }, { status: 500 });
+      const errorText = await tokenResponse.text();
+      console.error("Token exchange failed:", {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorText
+      });
+      return NextResponse.json({ 
+        error: "Failed to exchange code for token", 
+        details: errorText,
+        status: tokenResponse.status 
+      }, { status: 500 });
     }
 
     const tokenData = await tokenResponse.json();
-    const { access_token, id_token } = tokenData;
+    const { access_token } = tokenData;
 
     // Get user info from Google
     const userInfoResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
@@ -65,6 +98,9 @@ export async function POST(request: NextRequest) {
       },
       { merge: true }
     );
+
+    // Get the ID token from the token response
+    const { id_token } = tokenData;
 
     return NextResponse.json({ 
       ok: true, 

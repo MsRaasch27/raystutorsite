@@ -74,6 +74,7 @@ export default function ProtectedRoute({
 
   // Check teacher access
   if (requireTeacher && !isTeacher(user)) {
+    console.log('Teacher access denied:', { userEmail: user?.email, isTeacher: isTeacher(user) });
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center max-w-md mx-auto px-6">
@@ -81,6 +82,9 @@ export default function ProtectedRoute({
           <h1 className="text-2xl font-bold text-gray-800 mb-4">Access Denied</h1>
           <p className="text-gray-600 mb-6">
             This page is only accessible to teachers. You don&apos;t have permission to view this content.
+          </p>
+          <p className="text-sm text-gray-500 mb-4">
+            Current user: {user?.email || 'Not authenticated'}
           </p>
           <button
             onClick={() => window.location.href = '/'}

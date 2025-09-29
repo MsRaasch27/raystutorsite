@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type StudentImagePromptProps = {
   studentId: string;
@@ -10,7 +10,30 @@ type StudentImagePromptProps = {
 export default function StudentImagePrompt({ studentId, studentName }: StudentImagePromptProps) {
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  // Load existing prompt on component mount
+  useEffect(() => {
+    const loadExistingPrompt = async () => {
+      try {
+        const response = await fetch(`/api/student-image-prompt?studentId=${encodeURIComponent(studentId)}`);
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          setPrompt(data.customImagePrompt || '');
+          setLastUpdated(data.imagePromptUpdatedAt || null);
+        }
+      } catch (error) {
+        console.error('Error loading existing prompt:', error);
+      } finally {
+        setIsLoadingPrompt(false);
+      }
+    };
+
+    loadExistingPrompt();
+  }, [studentId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +64,8 @@ export default function StudentImagePrompt({ studentId, studentName }: StudentIm
           type: 'success',
           text: `Successfully set custom image prompt for ${studentName}! A new image will be generated for tomorrow.`
         });
-        setPrompt("");
+        setLastUpdated(new Date().toISOString());
+        // Don't clear the prompt - keep it visible for editing
       } else {
         setMessage({
           type: 'error',
@@ -67,6 +91,10 @@ export default function StudentImagePrompt({ studentId, studentName }: StudentIm
         Set a custom AI prompt to generate unique daily background images for {studentName}&apos;s flashcard deck.
       </p>
       
+      {isLoadingPrompt && (
+        <div className="text-sm text-gray-500 mb-4">Loading current prompt...</div>
+      )}
+      
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label htmlFor={`prompt-${studentId}`} className="block text-sm font-medium text-gray-700 mb-1">
@@ -88,7 +116,7 @@ export default function StudentImagePrompt({ studentId, studentName }: StudentIm
           disabled={isLoading || !prompt.trim()}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
         >
-          {isLoading ? 'Setting Prompt...' : 'Set Custom Prompt'}
+          {isLoading ? 'Updating Prompt...' : (prompt ? 'Update Custom Prompt' : 'Set Custom Prompt')}
         </button>
       </form>
 

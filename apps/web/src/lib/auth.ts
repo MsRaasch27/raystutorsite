@@ -30,10 +30,13 @@ export function useAuth(): AuthState {
         // Check if we have a stored token
         const token = localStorage.getItem('auth_token');
         if (!token) {
+          console.log('No auth token found, user not authenticated');
           setUser(null);
           setLoading(false);
           return;
         }
+        
+        console.log('Found auth token, verifying...');
 
         // Check if token might be expired (Google ID tokens expire after 1 hour)
         // We'll still try to verify it, but this helps with debugging
@@ -58,7 +61,7 @@ export function useAuth(): AuthState {
 
         // Verify the token with our backend
         try {
-          const response = await fetch('https://us-central1-raystutorsite.cloudfunctions.net/api/oauth/verify', {
+          const response = await fetch('/api/auth/verify', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -68,6 +71,7 @@ export function useAuth(): AuthState {
 
           if (response.ok) {
             const userData = await response.json();
+            console.log('User authenticated successfully:', userData);
             setUser(userData);
           } else {
             // Token is invalid or expired, remove it and trigger re-authentication
@@ -142,7 +146,13 @@ export function useAuth(): AuthState {
 }
 
 export function isTeacher(user: User | null): boolean {
-  return user?.email === 'msraasch27@gmail.com';
+  if (!user?.email) {
+    console.log('isTeacher: No user or email');
+    return false;
+  }
+  const isTeacherResult = user.email.toLowerCase() === 'msraasch27@gmail.com';
+  console.log('isTeacher check:', { userEmail: user.email, lowercased: user.email.toLowerCase(), expected: 'msraasch27@gmail.com', result: isTeacherResult });
+  return isTeacherResult;
 }
 
 export function canAccessStudentPage(user: User | null, studentEmail: string): boolean {

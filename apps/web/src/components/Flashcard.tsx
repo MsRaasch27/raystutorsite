@@ -6,7 +6,6 @@ type VocabularyWord = {
   id: string;
   english: string;
   [key: string]: string | undefined; // For native language field (dynamic key)
-  example: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -223,10 +222,6 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
               <div className="w-full h-full bg-gradient-to-br from-green-500 to-teal-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
                 <div className="text-center">
                   <h3 className={`${isSimpleMode ? 'text-3xl' : 'text-lg'} font-bold mb-1`}>{getNativeLanguageValue()}</h3>
-                  <p className={`text-green-100 ${isSimpleMode ? 'text-lg' : 'text-xs'} mb-1`}>{word.english}</p>
-                  {word.example && (
-                    <p className={`text-green-200 ${isSimpleMode ? 'text-base' : 'text-xs'} italic mb-2`}>&ldquo;{word.example}&rdquo;</p>
-                  )}
                   <p className="text-green-200 text-xs">Tap to flip back</p>
                 </div>
                 
@@ -287,10 +282,6 @@ export function Flashcard({ word, user, onRate, onActivate, showEnglishFirst = t
               <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-lg p-3 flex flex-col justify-center items-center text-white relative">
                 <div className="text-center">
                   <h3 className={`${isSimpleMode ? 'text-3xl' : 'text-lg'} font-bold mb-1`}>{word.english}</h3>
-                  <p className={`text-blue-100 ${isSimpleMode ? 'text-lg' : 'text-xs'} mb-1`}>{getNativeLanguageValue()}</p>
-                  {word.example && (
-                    <p className={`text-blue-200 ${isSimpleMode ? 'text-base' : 'text-xs'} italic mb-2`}>&ldquo;{word.example}&rdquo;</p>
-                  )}
                   <p className="text-blue-200 text-xs">Tap to flip back</p>
                 </div>
                 

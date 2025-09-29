@@ -5,9 +5,10 @@ import { useState, useEffect } from "react";
 interface RewardAnimationProps {
   isVisible: boolean;
   onComplete: () => void;
+  activeTab?: string; // Add activeTab to know where creature is positioned
 }
 
-export default function RewardAnimation({ isVisible, onComplete }: RewardAnimationProps) {
+export default function RewardAnimation({ isVisible, onComplete, activeTab = 'practice' }: RewardAnimationProps) {
   const [animationPhase, setAnimationPhase] = useState<'hidden' | 'fill' | 'spin' | 'spiral' | 'land'>('hidden');
   const [spiralProgress, setSpiralProgress] = useState(0);
 
@@ -56,34 +57,63 @@ export default function RewardAnimation({ isVisible, onComplete }: RewardAnimati
     return null;
   }
 
-  // Calculate spiral path
+  // Calculate spiral path to creature position, then fly out of view
   const getSpiralPosition = (progress: number) => {
     if (progress === 0) return { x: 50, y: 50, scale: 1 }; // Center of screen
     
-    // Spiral from center to bottom-right (where creature typically is)
-    const angle = progress * Math.PI * 4; // 2 full rotations
-    const radius = (1 - progress) * 200; // Shrinking radius
+    // Calculate creature position based on activeTab
+    let creatureX;
     
-    const centerX = 50; // Center of screen
-    const centerY = 50;
-    const targetX = 85; // Bottom-right area
-    const targetY = 80;
+    switch (activeTab) {
+      case 'past':
+        creatureX = 16.67; // left-[16.67%]
+        break;
+      case 'upcoming':
+        creatureX = 50; // left-[50%]
+        break;
+      case 'practice':
+      default:
+        creatureX = 83.33; // left-[83.33%]
+        break;
+    }
     
-    const spiralX = centerX + Math.cos(angle) * radius * 0.1;
-    const spiralY = centerY + Math.sin(angle) * radius * 0.1;
+    // Creature is positioned at -top-28 (above header), so roughly 15% from top
+    const creatureY = 15;
     
-    // Interpolate towards target
-    const x = spiralX + (targetX - spiralX) * progress;
-    const y = spiralY + (targetY - spiralY) * progress;
-    const scale = 1 - progress * 0.8; // Shrink from 1 to 0.2
-    
-    return { x, y, scale };
+    // Split the animation: 0-0.8 goes to creature, 0.8-1 flies out of view
+    if (progress <= 0.8) {
+      // Spiral from center to creature position
+      const angle = progress * Math.PI * 4; // 2 full rotations
+      const radius = (1 - progress) * 200; // Shrinking radius
+      
+      const centerX = 50; // Center of screen
+      const centerY = 50;
+      
+      const spiralX = centerX + Math.cos(angle) * radius * 0.1;
+      const spiralY = centerY + Math.sin(angle) * radius * 0.1;
+      
+      // Interpolate towards creature position
+      const x = spiralX + (creatureX - spiralX) * progress;
+      const y = spiralY + (creatureY - spiralY) * progress;
+      const scale = 1 - progress * 0.5; // Shrink from 1 to 0.5
+      
+      return { x, y, scale };
+    } else {
+      // Fly up and to the right, out of view
+      const flyProgress = (progress - 0.8) / 0.2; // 0 to 1 for the flying phase
+      
+      const x = creatureX + flyProgress * 30; // Move right
+      const y = creatureY - flyProgress * 120; // Move up and out of view
+      const scale = 0.5 - flyProgress * 0.5; // Continue shrinking to 0
+      
+      return { x, y, scale };
+    }
   };
 
   const spiralPos = getSpiralPosition(spiralProgress);
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none">
+    <div className="fixed inset-0 z-[9999] pointer-events-none">
       {/* Background overlay */}
       <div 
         className={`absolute inset-0 bg-gradient-to-br from-yellow-200 via-yellow-100 to-amber-100 transition-opacity duration-1000 ${

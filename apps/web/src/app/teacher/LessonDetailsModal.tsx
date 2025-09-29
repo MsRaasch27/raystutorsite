@@ -40,7 +40,9 @@ type LessonDetails = {
   vocabulary?: string[];
   homework?: string | null;
   learningActivity?: string | null;
-  resources?: string[];
+  powerpoint?: string[];
+  grammarConcept?: string | null;
+  playlist?: string | null;
   teacherNotes?: string | null;
 };
 
@@ -139,7 +141,7 @@ export function LessonDetailsModal({
     if (newResource.trim()) {
       setDetails(prev => ({
         ...prev,
-        resources: [...(prev.resources || []), newResource.trim()]
+        powerpoint: [...(prev.powerpoint || []), newResource.trim()]
       }));
       setNewResource("");
     }
@@ -148,7 +150,7 @@ export function LessonDetailsModal({
   const removeResource = (index: number) => {
     setDetails(prev => ({
       ...prev,
-      resources: prev.resources?.filter((_, i) => i !== index) || []
+      powerpoint: prev.powerpoint?.filter((_, i) => i !== index) || []
     }));
   };
 
@@ -294,7 +296,7 @@ export function LessonDetailsModal({
                 📖 Resources & Materials
               </label>
               <div className="space-y-2">
-                {details.resources?.map((resource, index) => (
+                {details.powerpoint?.map((resource, index) => (
                   <div key={index} className="flex items-center gap-2">
                     <span className="flex-1 p-2 bg-gray-100 rounded text-gray-900">{resource}</span>
                     <button

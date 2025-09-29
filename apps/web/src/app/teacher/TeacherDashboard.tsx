@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { LessonDetailsModal } from "./LessonDetailsModal";
 import { StudentLessonsModal } from "./StudentLessonsModal";
 import StudentImagePrompt from "@/components/StudentImagePrompt";
@@ -31,7 +32,9 @@ type LessonDetails = {
   vocabulary?: string[];
   homework?: string | null;
   learningActivity?: string | null;
-  resources?: string[];
+  powerpoint?: string[];
+  grammarConcept?: string | null;
+  playlist?: string | null;
   teacherNotes?: string | null;
 };
 
@@ -275,12 +278,12 @@ export function TeacherDashboard() {
               <p className="text-gray-200">Manage your students and lessons</p>
             </div>
             <div className="flex items-center gap-4">
-              <a
-                href="/admin"
+              <Link
+                href="/teacher/admin"
                 className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors text-sm flex items-center gap-2"
               >
                 🔧 Admin Panel
-              </a>
+              </Link>
               <div className="text-right">
                 <div className="text-2xl font-bold text-white">{students.length}</div>
                 <div className="text-gray-200 text-sm">Total Students</div>

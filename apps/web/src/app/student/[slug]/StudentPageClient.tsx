@@ -2,13 +2,12 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FlashcardDeck } from "../../../components/FlashcardDeck";
 import { PricingModal, PricingOption } from "../../../components/PricingModal";
 import { CEFRLevels } from "../../../components/CEFRLevels";
 import AnimalFamiliarPopup from "../../../components/AnimalFamiliarPopup";
 import CreatureSelectionScreen from "../../../components/CreatureSelectionScreen";
-import SparkleButton from "../../../components/SparkleButton";
+import HomeworkSubmissionModal from "../../../components/HomeworkSubmissionModal";
 
 type SessionInfo = {
   sessionsThisMonth: number;
@@ -130,13 +129,45 @@ export function StudentPageClient({
   const [showAnimalFamiliarPopup, setShowAnimalFamiliarPopup] = useState(false);
   const [showCreatureSelection, setShowCreatureSelection] = useState(false);
   const [selectedCreature, setSelectedCreature] = useState<string | null>(user.selectedCreature || null);
-  const router = useRouter();
   
   // Animation states for creature hopping
   const [creatureAnimation, setCreatureAnimation] = useState<'idle' | 'hopping' | 'wiggling'>('idle');
   const [previousTab, setPreviousTab] = useState<TabType | null>(null);
   const [creaturePosition, setCreaturePosition] = useState<{ x: number; y: number } | null>(null);
   const [hopDirection, setHopDirection] = useState<string>('');
+  
+  // State for persistent star on creature
+  const [showStarOnCreature, setShowStarOnCreature] = useState(false);
+
+  // Load star state from localStorage on component mount
+  useEffect(() => {
+    const today = new Date().toDateString();
+    const starData = localStorage.getItem(`starOnCreature_${user.id}`);
+    if (starData) {
+      const { date, showStar } = JSON.parse(starData);
+      if (date === today && showStar) {
+        setShowStarOnCreature(true);
+      }
+    }
+  }, [user.id]);
+
+  // Handle reward animation completion - show star on creature
+  const handleRewardAnimationComplete = useCallback(() => {
+    setShowStarOnCreature(true);
+    // Persist to localStorage
+    const today = new Date().toDateString();
+    localStorage.setItem(`starOnCreature_${user.id}`, JSON.stringify({
+      date: today,
+      showStar: true
+    }));
+  }, [user.id]);
+
+  // Reset star when flashcard deck is reset (new day or manual reset)
+  const handleFlashcardReset = useCallback(() => {
+    setShowStarOnCreature(false);
+    // Clear from localStorage
+    localStorage.removeItem(`starOnCreature_${user.id}`);
+  }, [user.id]);
 
   // Animated tab change function
   const handleAnimatedTabChange = useCallback((newTab: TabType) => {
@@ -186,6 +217,25 @@ export function StudentPageClient({
   // const [loadingSessions, setLoadingSessions] = useState(true);
   const [lessonDetails, setLessonDetails] = useState<Record<string, LessonDetails>>({});
   const [loadingLessonDetails, setLoadingLessonDetails] = useState(false);
+  
+  // Homework submission state
+  const [showHomeworkModal, setShowHomeworkModal] = useState(false);
+  const [selectedLessonForHomework, setSelectedLessonForHomework] = useState<{
+    id: string;
+    topic: string;
+    homeworkPrompt?: string;
+    studentId: string;
+  } | null>(null);
+  const [homeworkSubmissions, setHomeworkSubmissions] = useState<Record<string, {
+    id: string;
+    lessonId: string;
+    studentId: string;
+    content: string;
+    submittedAt: string;
+    status: 'submitted' | 'graded';
+    grade?: string;
+    feedback?: string;
+  }>>({});
 
   const isPaid = !!user.billing?.active;
   const hasCompletedFirstLesson = past.items.length > 0;
@@ -305,10 +355,50 @@ export function StudentPageClient({
     }
   }, [isPaid, fetchSessionInfo]);
 
+  // Load homework submissions
+  const loadHomeworkSubmissions = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}/homework`);
+      if (response.ok) {
+        const submissions = await response.json();
+        const submissionsMap: Record<string, {
+          id: string;
+          lessonId: string;
+          studentId: string;
+          content: string;
+          submittedAt: string;
+          status: 'submitted' | 'graded';
+          grade?: string;
+          feedback?: string;
+        }> = {};
+        submissions.forEach((submission: {
+          id: string;
+          lessonId: string;
+          studentId: string;
+          content: string;
+          submittedAt: string;
+          status: 'submitted' | 'graded';
+          grade?: string;
+          feedback?: string;
+        }) => {
+          submissionsMap[submission.lessonId] = submission;
+        });
+        setHomeworkSubmissions(submissionsMap);
+      }
+    } catch (error) {
+      console.error("Failed to fetch homework submissions:", error);
+    }
+  }, [user.id]);
+
   // Fetch lesson details when past lessons change
   useEffect(() => {
     fetchLessonDetails();
   }, [fetchLessonDetails]);
+
+  // Load homework submissions when component mounts
+  useEffect(() => {
+    loadHomeworkSubmissions();
+  }, [loadHomeworkSubmissions]);
 
   const handlePlanSelection = useCallback((option: PricingOption) => {
     setShowPricingModal(false);
@@ -607,10 +697,32 @@ export function StudentPageClient({
           >
             📝 Review Vocab
           </button>
+          
+          {/* Submit/Edit Homework Button */}
+          {hasHomework && (
+            <button
+              onClick={() => {
+                setSelectedLessonForHomework({
+                  id: appt.id,
+                  topic: details.topic || appt.title || "English Lesson",
+                  homeworkPrompt: details.homework || undefined,
+                  studentId: user.id
+                });
+                setShowHomeworkModal(true);
+              }}
+              className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                homeworkSubmissions[appt.id]
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-purple-600 text-white hover:bg-purple-700'
+              }`}
+            >
+              {homeworkSubmissions[appt.id] ? '✏️ Edit Homework' : '📝 Submit Homework'}
+            </button>
+          )}
         </div>
       </div>
     );
-  }, [lessonDetails, formatDateInTimezone, formatTimeInTimezone, setActiveTab, getTimezoneAbbreviation]);
+  }, [lessonDetails, formatDateInTimezone, formatTimeInTimezone, setActiveTab, getTimezoneAbbreviation, homeworkSubmissions, user.id]);
 
   // Function to render upcoming lessons with lesson details
   const renderUpcomingLesson = useCallback((appt: Appt) => {
@@ -769,7 +881,11 @@ export function StudentPageClient({
                 </Link>
               </div>
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-6 border-2 border-purple-200 overflow-hidden">
-                <FlashcardDeck userId={user.id} />
+                <FlashcardDeck 
+                  userId={user.id} 
+                  onRewardComplete={handleRewardAnimationComplete}
+                  onReset={handleFlashcardReset}
+                />
               </div>
             </div>
 
@@ -867,245 +983,142 @@ export function StudentPageClient({
       }} />
       {/* Banner Header */}
       <section className="max-w-6xl mx-auto px-4 py-16 rounded-2xl" style={{ backgroundColor: '#000000' }}>
-        <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-6xl relative">
-          {/* Settings Gear Icon */}
-          <button
-            onClick={() => router.push(`/student/${encodeURIComponent(user.email)}/settings`)}
-            className="absolute top-2 right-2 text-white hover:text-gray-300 transition-colors p-2 rounded-full hover:bg-white hover:bg-opacity-10 z-50"
-            title="Settings"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </button>
-
-          {/* Candles in Top Left Corner */}
-          <div className="absolute -top-16 -left-12 z-50 pointer-events-none">
-            <div
-              className="absolute top-0 left-0"
-              style={{
-                animation: 'slowBounce 3.5s ease-in-out infinite',
-                width: '150px',
-                height: '150px'
-              }}
-            >
-              <img
-                src="/candle.png"
-                alt="Floating Candle"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain'
-                }}
-              />
-            </div>
-
-            <div
-              className="absolute top-6 left-16"
-              style={{
-                animation: 'slowBounce 3.2s ease-in-out infinite',
-                width: '130px',
-                height: '130px'
-              }}
-            >
-              <img
-                src="/candle.png"
-                alt="Floating Candle"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain'
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Candles in Bottom Right Corner */}
-          <div className="absolute bottom-12 right-0 z-50 pointer-events-none">
-            <div 
-              className="absolute -top-45 -right-50 candle-1"
-              style={{
-                animation: 'slowBounce 3s ease-in-out infinite',
-                width: '300px',
-                height: '300px'
-              }}
-            >
-              <img
-                src="/candle.png"
-                alt="Floating Candle"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  maxWidth: 'none',
-                  maxHeight: 'none'
-                }}
-              />
-            </div>
-            
-            <div 
-              className="absolute -top-25 -right-30 candle-2"
-              style={{
-                animation: 'slowBounce 2.8s ease-in-out infinite',
-                width: '250px',
-                height: '250px'
-              }}
-            >
-              <img
-                src="/candle.png"
-                alt="Floating Candle"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  maxWidth: 'none',
-                  maxHeight: 'none'
-                }}
-              />
-            </div>
-            
-            <div 
-              className="absolute -top-20 -right-45 candle-3"
-              style={{
-                animation: 'slowBounce 2.5s ease-in-out infinite',
-                width: '200px',
-                height: '200px'
-              }}
-            >
-              <img
-                src="/candle.png"
-                alt="Floating Candle"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  maxWidth: 'none',
-                  maxHeight: 'none'
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Top Section with Profile Image and Header Text */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8">
-            {/* Student Avatar */}
-            <div className="relative w-28 h-28 md:w-40 md:h-40 flex-shrink-0">
-              <div className="w-full h-full rounded-full overflow-hidden border-4 border-white border-opacity-30">
-                {levelInfo.name === "Apprentice of Words" ? (
-                  <img
-                    src="/wizardsnail.png"
-                    alt="Wizard Snail Avatar"
-                    className="w-full h-full object-cover"
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : levelInfo.name === "Adept of Phrases" ? (
-                  <img
-                    src="/wizardchipmunk.png"
-                    alt="Wizard Chipmunk Avatar"
-                    className="w-full h-full object-cover"
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : levelInfo.name === "Scholar of Incantations" ? (
-                  <img
-                    src="/wizardrabbit.png"
-                    alt="Wizard Rabbit Avatar"
-                    className="w-full h-full object-cover"
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : levelInfo.name === "Conjurer of Discourse" ? (
-                  <img
-                    src="/wizardraccoon.png"
-                    alt="Wizard Raccoon Avatar"
-                    className="w-full h-full object-cover"
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : levelInfo.name === "Archmage of Expression" ? (
-                  <img
-                    src="/wizardfox.png"
-                    alt="Wizard Fox Avatar"
-                    className="w-full h-full object-cover"
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : levelInfo.name === "Sage of Tongues" ? (
-                  <img
-                    src="/wizardbear.png"
-                    alt="Wizard Bear Avatar"
-                    className="w-full h-full object-cover"
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : (
-                  <div className="text-4xl lg:text-5xl text-gray-400 flex items-center justify-center h-full">
-                    🧙‍♂️
-                  </div>
+        <div className="bg-black bg-opacity-90 rounded-2xl p-8 mx-8 my-4 max-w-6xl">
+          <div className="flex flex-col lg:flex-row items-start gap-6">
+            {/* Welcome Content */}
+            <div className="text-center md:text-left flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">
+                Welcome, {user.name ?? user.email.split('@')[0]}!
+              </h1>
+              <p className="text-lg md:text-xl text-blue-100 mb-6">
+                Learning Goal: {user.goals || "Master conversational English and build confidence in speaking"}
+              </p>
+              
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                {!hasCompletedAssessment && (
+                  <a 
+                    href="https://forms.gle/396aRWwtMGvLgiwX6" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-lg inline-block text-center"
+                  >
+                    📝 Take Assessment
+                  </a>
                 )}
+                {locked ? (
+                  <button 
+                    disabled
+                    className="bg-gray-400 text-gray-600 px-6 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
+                    title="Schedule lessons after purchasing a plan"
+                  >
+                    📅 Schedule Lesson
+                  </button>
+                ) : sessionInfo && !sessionInfo.canSchedule ? (
+                  <button 
+                    disabled
+                    className="bg-gray-400 text-gray-600 px-6 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
+                    title="No sessions remaining. Purchase add-on sessions to continue."
+                  >
+                    📅 Schedule Lesson (0 remaining)
+                  </button>
+                ) : (
+                  <a 
+                    href="https://calendly.com/msraasch27/50min" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="bg-white text-amber-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-block text-center"
+                    title={sessionInfo ? `${sessionInfo.sessionsRemaining} sessions remaining` : "Schedule your lesson"}
+                  >
+                    📅  Schedule Lesson {sessionInfo && `(${sessionInfo.sessionsRemaining} remaining)`}
+                  </a>
+                )}
+                {/* Settings Gear Icon */}
+                <Link
+                  href={`/student/${encodeURIComponent(user.id)}/settings`}
+                  className="text-white hover:text-gray-300 transition-colors p-2"
+                  title="Settings"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                </Link>
               </div>
             </div>
 
-            {/* Header Text */}
-            <div className="text-center md:text-left flex-1">
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 text-white">
-                Welcome, {user.name ?? user.email.split('@')[0]}!
-              </h1>
-              <p className="text-lg md:text-xl lg:text-2xl text-white max-w-2xl">
-                Learning Goal: {user.goals || "Master conversational English and build confidence in speaking"}
-              </p>
-            </div>
-          </div>
+{/* Student Avatar Section - Right aligned */}
+<div className="w-full lg:w-auto lg:min-w-[200px] flex justify-center lg:justify-end">
+  <div className="relative">
+    <div className="w-32 h-32 lg:w-40 lg:h-40 rounded-full overflow-hidden border-4 border-white border-opacity-30 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
+      {levelInfo.name === "Apprentice of Words" ? (
+        <img
+          src="/wizardsnail.png"
+          alt="Wizard Snail Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Adept of Phrases" ? (
+        <img
+          src="/wizardchipmunk.png"
+          alt="Wizard Chipmunk Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Scholar of Incantations" ? (
+        <img
+          src="/wizardrabbit.png"
+          alt="Wizard Rabbit Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Conjurer of Discourse" ? (
+        <img
+          src="/wizardraccoon.png"
+          alt="Wizard Raccoon Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Archmage of Expression" ? (
+        <img
+          src="/wizardfox.png"
+          alt="Wizard Fox Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : levelInfo.name === "Sage of Tongues" ? (
+        <img
+          src="/wizardbear.png"
+          alt="Wizard Bear Avatar"
+          className="w-full h-full object-cover"
+          style={{ objectFit: 'contain' }}
+        />
+      ) : (
+        <div className="text-4xl lg:text-5xl text-gray-400">
+          🧙‍♂️
+        </div>
+      )}
+    </div>
+  </div>
+</div>
 
-          {/* Buttons Section */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-            {!hasCompletedAssessment && (
-              <a 
-                href="https://forms.gle/396aRWwtMGvLgiwX6" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-lg inline-block text-center"
-              >
-                📝 Take Assessment
-              </a>
-            )}
-            {locked ? (
-              <button 
-                disabled
-                className="bg-gray-400 text-gray-600 px-6 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
-                title="Schedule lessons after purchasing a plan"
-              >
-                📅 Schedule Lesson
-              </button>
-            ) : sessionInfo && !sessionInfo.canSchedule ? (
-              <button 
-                disabled
-                className="bg-gray-400 text-gray-600 px-6 py-3 rounded-lg font-semibold cursor-not-allowed shadow-lg inline-block text-center"
-                title="No sessions remaining. Purchase add-on sessions to continue."
-              >
-                📅 Schedule Lesson (0 remaining)
-              </button>
-            ) : (
-              <SparkleButton
-                href="https://calendly.com/msraasch27/50min"
-                className="bg-white text-amber-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-block text-center"
-                title={sessionInfo ? `${sessionInfo.sessionsRemaining} sessions remaining` : "Schedule your lesson"}
-              >
-                📅 Schedule Lesson {sessionInfo && `(${sessionInfo.sessionsRemaining} remaining)`}
-              </SparkleButton>
-            )}
+
           </div>
         </div>
       </section>
@@ -1136,13 +1149,13 @@ export function StudentPageClient({
       <section className="max-w-6xl mx-auto px-6 pb-8 relative rounded-2xl" style={{ backgroundColor: '#475037' }}>
         {/* Navigation Buttons */}
         <div className="py-6">
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button 
               onClick={() => handleAnimatedTabChange('past')}
               className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:flex-1 ${
                 activeTab === 'past' 
-                  ? 'ring-4 ring-amber-400 ring-opacity-50 scale-105' 
-                  : 'hover:scale-105 hover:shadow-lg'
+                  ? 'ring-4 ring-amber-400 ring-opacity-50 scale-[1.02]' 
+                  : 'hover:scale-[1.02] hover:shadow-lg'
               }`}
               style={{
                 backgroundImage: 'url(/PastLessons.png)',
@@ -1167,8 +1180,8 @@ export function StudentPageClient({
               onClick={() => handleAnimatedTabChange('upcoming')}
               className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:flex-1 ${
                 activeTab === 'upcoming' 
-                  ? 'ring-4 ring-amber-400 ring-opacity-50 scale-105' 
-                  : 'hover:scale-105 hover:shadow-lg'
+                  ? 'ring-4 ring-amber-400 ring-opacity-50 scale-[1.02]' 
+                  : 'hover:scale-[1.02] hover:shadow-lg'
               }`}
               style={{
                 backgroundImage: 'url(/PastLessons.png)',
@@ -1193,8 +1206,8 @@ export function StudentPageClient({
               onClick={() => handleAnimatedTabChange('practice')}
               className={`relative overflow-hidden rounded-lg transition-all duration-300 w-full sm:flex-1 ${
                 activeTab === 'practice' 
-                  ? 'ring-4 ring-amber-400 ring-opacity-50 scale-105' 
-                  : 'hover:scale-105 hover:shadow-lg'
+                  ? 'ring-4 ring-amber-400 ring-opacity-50 scale-[1.02]' 
+                  : 'hover:scale-[1.02] hover:shadow-lg'
               }`}
               style={{
                 backgroundImage: 'url(/PastLessons.png)',
@@ -1248,6 +1261,28 @@ export function StudentPageClient({
                     target.style.display = 'none';
                   }}
                 />
+                
+                {/* Persistent star on creature after reward animation */}
+                {showStarOnCreature && (
+                  <div className="absolute top-2 right-2 w-8 h-8 z-20">
+                    <div className="relative w-full h-full">
+                      {/* Star glow effect */}
+                      <div className="absolute inset-0 rounded-full blur-sm" style={{
+                        background: 'radial-gradient(circle, rgba(251, 191, 36, 0.6) 0%, rgba(252, 211, 77, 0.4) 50%, transparent 100%)'
+                      }}></div>
+                      {/* Star shape */}
+                      <div className="relative w-full h-full flex items-center justify-center">
+                        <svg 
+                          className="w-6 h-6 text-yellow-400 drop-shadow-lg" 
+                          fill="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1301,6 +1336,23 @@ export function StudentPageClient({
         onSelectCreature={handleCreatureSelection}
         isLoading={isSelectingCreature}
       />
+
+      {/* Homework Submission Modal */}
+      {selectedLessonForHomework && (
+        <HomeworkSubmissionModal
+          isOpen={showHomeworkModal}
+          onClose={() => {
+            setShowHomeworkModal(false);
+            setSelectedLessonForHomework(null);
+          }}
+          lesson={selectedLessonForHomework}
+          onSubmissionComplete={() => {
+            // Refresh homework submissions to update button text
+            loadHomeworkSubmissions();
+            console.log('Homework submitted successfully!');
+          }}
+        />
+      )}
     </main>
   );
 }

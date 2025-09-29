@@ -8,7 +8,6 @@ type VocabularyWord = {
   id: string;
   english: string;
   [key: string]: string | undefined; // For native language field (dynamic key)
-  example: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -34,7 +33,7 @@ export default function VocabularyPage() {
   const [editingWord, setEditingWord] = useState<VocabularyWord | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showImportForm, setShowImportForm] = useState(false);
-  const [newWord, setNewWord] = useState({ english: "", example: "" });
+  const [newWord, setNewWord] = useState({ english: "" });
   const [importUrl, setImportUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
 
@@ -94,7 +93,6 @@ export default function VocabularyPage() {
         },
         body: JSON.stringify({
           english: newWord.english,
-          example: newWord.example,
         }),
       });
 
@@ -109,7 +107,7 @@ export default function VocabularyPage() {
 
       const addedWord = await response.json();
       setVocabulary([...vocabulary, addedWord]);
-      setNewWord({ english: "", example: "" });
+      setNewWord({ english: "" });
       setShowAddForm(false);
       setSuccess(`Successfully added "${newWord.english}" to your vocabulary!`);
     } catch (err) {
@@ -359,18 +357,6 @@ export default function VocabularyPage() {
                     placeholder="Enter English word or phrase"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Example Sentence
-                  </label>
-                  <input
-                    type="text"
-                    value={newWord.example}
-                    onChange={(e) => setNewWord({ ...newWord, example: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                    placeholder="Enter example sentence"
-                  />
-                </div>
               </div>
               <button
                 onClick={handleAddWord}
@@ -391,15 +377,13 @@ export default function VocabularyPage() {
                 </p>
                 <div className="bg-gray-50 p-3 rounded-lg mb-4">
                   <div className="text-sm font-mono text-gray-700">
-                    <div className="grid grid-cols-3 gap-4 font-semibold border-b pb-1 mb-2">
+                    <div className="grid grid-cols-2 gap-4 font-semibold border-b pb-1 mb-2">
                       <span>English</span>
                       <span>{user?.natLang || "Native Language"}</span>
-                      <span>Example</span>
                     </div>
                     <div className="text-xs text-gray-500">
                       • English column is required<br/>
                       • Native Language column is optional (will be auto-translated if empty)<br/>
-                      • Example column is optional<br/>
                       • First row should contain headers
                     </div>
                   </div>
@@ -493,12 +477,6 @@ export default function VocabularyPage() {
                             </label>
                             <p className="text-lg text-gray-700">{getNativeLanguageValue(word)}</p>
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-1">
-                              Example
-                            </label>
-                            <p className="text-sm text-gray-600 italic">{word.example}</p>
-                          </div>
                         </div>
                       </div>
                       <div className="flex gap-2 ml-4">
@@ -538,21 +516,19 @@ function EditWordForm({ word, nativeLanguage, onSave, onCancel }: EditWordFormPr
   const [formData, setFormData] = useState({
     english: word.english,
     [nativeLanguage]: word[nativeLanguage] || "",
-    example: word.example,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Only send english and example - backend will handle translation
+    // Only send english - backend will handle translation
     onSave({
       english: formData.english,
-      example: formData.example,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             English Word/Phrase
@@ -573,17 +549,6 @@ function EditWordForm({ word, nativeLanguage, onSave, onCancel }: EditWordFormPr
             type="text"
             value={formData[nativeLanguage]}
             onChange={(e) => setFormData({ ...formData, [nativeLanguage]: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Example Sentence
-          </label>
-          <input
-            type="text"
-            value={formData.example}
-            onChange={(e) => setFormData({ ...formData, example: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
           />
         </div>

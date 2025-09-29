@@ -23,7 +23,7 @@ export default function AuthCallbackContent() {
         }
 
         // Exchange code for user data
-        const response = await fetch("https://us-central1-raystutorsite.cloudfunctions.net/api/oauth/callback", {
+        const response = await fetch("/api/auth/google-callback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code }),
