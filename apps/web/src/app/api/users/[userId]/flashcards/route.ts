@@ -22,10 +22,16 @@ export async function GET(
       .collection('flashcardProgress')
       .get();
 
-    const progress = progressSnapshot.docs.map(doc => ({
-      wordId: doc.id,
-      ...doc.data()
-    }));
+    const progress = progressSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        wordId: doc.id,
+        ...data,
+        // Convert Firestore Timestamps to ISO strings for proper JSON serialization
+        lastReviewed: data.lastReviewed?.toDate?.()?.toISOString() || data.lastReviewed,
+        nextReview: data.nextReview?.toDate?.()?.toISOString() || data.nextReview,
+      };
+    });
 
     return NextResponse.json({ progress });
   } catch (error) {

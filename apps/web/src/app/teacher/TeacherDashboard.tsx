@@ -38,6 +38,17 @@ type LessonDetails = {
   teacherNotes?: string | null;
 };
 
+type HomeworkSubmission = {
+  id: string;
+  lessonId: string;
+  studentId: string;
+  content: string;
+  submittedAt: string;
+  status: 'submitted' | 'graded';
+  grade?: string;
+  feedback?: string;
+};
+
 type Lesson = {
   id: string;
   calendarEventId: string;
@@ -63,6 +74,7 @@ export function TeacherDashboard() {
   const [expandedRecentStudents, setExpandedRecentStudents] = useState<Set<string>>(new Set());
   const [expandedUpcomingStudents, setExpandedUpcomingStudents] = useState<Set<string>>(new Set());
   const [lessonDetails, setLessonDetails] = useState<Record<string, LessonDetails>>({});
+  const [homeworkSubmissions, setHomeworkSubmissions] = useState<Record<string, HomeworkSubmission[]>>({});
 
   useEffect(() => {
     fetchStudents();
@@ -98,6 +110,9 @@ export function TeacherDashboard() {
       
       // Fetch lesson details for all upcoming lessons
       await fetchLessonDetailsForStudents(sortedStudents);
+      
+      // Fetch lesson details and homework submissions for recent lessons
+      await fetchRecentLessonDetailsAndHomework(sortedStudents);
     } catch (err) {
       console.error('Error fetching students:', err);
       setError('Failed to load students');
@@ -125,6 +140,44 @@ export function TeacherDashboard() {
     }
     
     setLessonDetails(details);
+  };
+
+  const fetchRecentLessonDetailsAndHomework = async (studentsList: Student[]) => {
+    const details: Record<string, LessonDetails> = {};
+    const homeworkData: Record<string, HomeworkSubmission[]> = {};
+    
+    for (const student of studentsList) {
+      // Fetch homework submissions for this student
+      try {
+        const homeworkResponse = await fetch(`/api/users/${encodeURIComponent(student.id)}/homework`);
+        if (homeworkResponse.ok) {
+          const homeworkSubmissions = await homeworkResponse.json();
+          homeworkData[student.id] = homeworkSubmissions || [];
+        } else {
+          homeworkData[student.id] = [];
+        }
+      } catch (err) {
+        console.error(`Error fetching homework for student ${student.id}:`, err);
+        homeworkData[student.id] = [];
+      }
+      
+      // Fetch lesson details for recent lessons
+      for (const lesson of student.recentLessons) {
+        try {
+          const response = await fetch(`/api/users/${encodeURIComponent(student.id)}/lesson-details/${lesson.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            details[lesson.id] = data.details || {};
+          }
+        } catch (err) {
+          console.error(`Error fetching details for lesson ${lesson.id}:`, err);
+          details[lesson.id] = {};
+        }
+      }
+    }
+    
+    setLessonDetails(prev => ({ ...prev, ...details }));
+    setHomeworkSubmissions(homeworkData);
   };
 
   const handleLessonClick = (lesson: Lesson, student: Student) => {
@@ -426,20 +479,53 @@ export function TeacherDashboard() {
                       <div className="space-y-2">
                         {student.recentLessons
                           .slice(0, expandedRecentStudents.has(student.id) ? undefined : 2)
-                          .map((lesson) => (
-                          <div 
-                            key={lesson.id}
-                            className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                            onClick={() => handleLessonClick(lesson, student)}
-                          >
-                            <div className="font-medium text-gray-800">
-                              {lesson.title || 'English Lesson'}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              {formatDate(lesson.startTime || null)}
-                            </div>
-                          </div>
-                        ))}
+                          .map((lesson) => {
+                            const details = lessonDetails[lesson.id] || {};
+                            const studentHomework = homeworkSubmissions[student.id] || [];
+                            const homeworkSubmission = studentHomework.find(h => h.lessonId === lesson.id);
+                            const hasHomework = details.homework && details.homework.trim() !== '';
+                            
+                            return (
+                              <div 
+                                key={lesson.id}
+                                className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                                onClick={() => handleLessonClick(lesson, student)}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="font-medium text-gray-800">
+                                    {lesson.title || 'English Lesson'}
+                                  </div>
+                                  {hasHomework && (
+                                    <div className="flex gap-1">
+                                      {homeworkSubmission ? (
+                                        <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">
+                                          📝 Submitted
+                                        </span>
+                                      ) : (
+                                        <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded">
+                                          ⏳ Not Complete
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {formatDate(lesson.startTime || null)}
+                                </div>
+                                {hasHomework && homeworkSubmission && (
+                                  <div className="mt-2 text-xs text-gray-600 bg-blue-50 p-2 rounded border">
+                                    <div className="font-medium text-blue-700 mb-1">Student Submission:</div>
+                                    <div className="text-gray-700 max-h-16 overflow-y-auto">
+                                      {homeworkSubmission.content}
+                                    </div>
+                                    <div className="text-blue-600 mt-1">
+                                      Submitted: {new Date(homeworkSubmission.submittedAt).toLocaleDateString()}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                       </div>
                     )}
                   </div>

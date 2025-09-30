@@ -63,9 +63,28 @@ export function FlashcardDeck({ userId, activeTab = 'practice', onRewardComplete
     hard: 1,
   });
   const [forceAllCardsDue, setForceAllCardsDue] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   
   // Get daily background image
-  const { imageUrl, prompt, source } = useDailyImage();
+  const { imageUrl } = useDailyImage();
+
+  // Helper function to safely convert date strings to Date objects
+  const safeDate = (dateValue: unknown): Date => {
+    if (!dateValue) return new Date();
+    if (dateValue instanceof Date) return dateValue;
+    if (typeof dateValue === 'string') {
+      const parsed = new Date(dateValue);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    }
+    // Handle Firestore Timestamp objects or other date-like objects
+    if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+      const timestamp = dateValue as { toDate: () => Date };
+      if (typeof timestamp.toDate === 'function') {
+        return timestamp.toDate();
+      }
+    }
+    return new Date();
+  };
 
   // Load custom intervals
   useEffect(() => {
@@ -243,7 +262,7 @@ export function FlashcardDeck({ userId, activeTab = 'practice', onRewardComplete
         // We can detect this by checking if the lastReviewed date is very recent (within last few minutes)
         if (!wordProgress) return true; // No progress = due
         
-        const lastReviewed = new Date(wordProgress.lastReviewed);
+        const lastReviewed = safeDate(wordProgress.lastReviewed);
         const timeSinceReview = now.getTime() - lastReviewed.getTime();
         const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
         
@@ -254,7 +273,7 @@ export function FlashcardDeck({ userId, activeTab = 'practice', onRewardComplete
         if (!wordProgress) return true;
         
         // Check if card is due for review
-        const nextReview = new Date(wordProgress.nextReview);
+        const nextReview = safeDate(wordProgress.nextReview);
         return nextReview <= now;
       }
     });
@@ -268,6 +287,61 @@ export function FlashcardDeck({ userId, activeTab = 'practice', onRewardComplete
     
     return filtered;
   }, [words, progress, forceAllCardsDue]);
+
+  // Debug information for troubleshooting
+  const debugInfo = useMemo(() => {
+    const now = new Date();
+    const debugCards = words.map(word => {
+      const wordProgress = progress[word.id];
+      let status = '';
+      let reason = '';
+      
+      if (!wordProgress) {
+        status = 'DUE';
+        reason = 'No progress recorded';
+      } else {
+        const nextReview = safeDate(wordProgress.nextReview);
+        const lastReviewed = safeDate(wordProgress.lastReviewed);
+        const timeSinceReview = now.getTime() - lastReviewed.getTime();
+        const fiveMinutes = 5 * 60 * 1000;
+        
+        if (forceAllCardsDue) {
+          if (timeSinceReview > fiveMinutes) {
+            status = 'DUE (Force)';
+            reason = `Reviewed ${Math.round(timeSinceReview / (1000 * 60))} minutes ago`;
+          } else {
+            status = 'FILTERED';
+            reason = `Reviewed ${Math.round(timeSinceReview / (1000 * 60))} minutes ago (< 5 min)`;
+          }
+        } else {
+          if (nextReview <= now) {
+            status = 'DUE';
+            reason = `Next review: ${nextReview.toLocaleString()}`;
+          } else {
+            status = 'NOT DUE';
+            reason = `Next review: ${nextReview.toLocaleString()}`;
+          }
+        }
+      }
+      
+      return {
+        word: word.english,
+        id: word.id,
+        status,
+        reason,
+        progress: wordProgress
+      };
+    });
+    
+    return {
+      totalWords: words.length,
+      dueCards: dueCards.length,
+      forceAllCardsDue,
+      customIntervals,
+      now: now.toISOString(),
+      cards: debugCards
+    };
+  }, [words, progress, dueCards, forceAllCardsDue, customIntervals]);
 
   // Get current card (not used in scattered layout but kept for compatibility)
   // const currentCard = dueCards[currentCardIndex];
@@ -561,7 +635,53 @@ export function FlashcardDeck({ userId, activeTab = 'practice', onRewardComplete
           </div>
         </div>
         
+        {/* Debug Panel Toggle */}
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => setShowDebugPanel(!showDebugPanel)}
+            className="px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded text-gray-700 transition-colors"
+          >
+            {showDebugPanel ? 'Hide Debug' : 'Show Debug'}
+          </button>
+        </div>
+        
       </div>
+
+      {/* Debug Panel */}
+      {showDebugPanel && (
+        <div className="mt-4 p-4 bg-gray-100 rounded-lg border">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Debug Information</h3>
+          <div className="text-xs space-y-2">
+            <div><strong>Total Words:</strong> {debugInfo.totalWords}</div>
+            <div><strong>Due Cards:</strong> {debugInfo.dueCards}</div>
+            <div><strong>Force All Due:</strong> {debugInfo.forceAllCardsDue ? 'Yes' : 'No'}</div>
+            <div><strong>Custom Intervals:</strong> Easy: {debugInfo.customIntervals.easy}d, Medium: {debugInfo.customIntervals.medium}d, Hard: {debugInfo.customIntervals.hard}d</div>
+            <div><strong>Current Time:</strong> {debugInfo.now}</div>
+            
+            <div className="mt-4">
+              <strong>Card Status:</strong>
+              <div className="mt-2 max-h-40 overflow-y-auto">
+                {debugInfo.cards.map((card) => (
+                  <div key={card.id} className={`p-2 mb-1 rounded text-xs ${
+                    card.status.includes('DUE') ? 'bg-green-100' : 
+                    card.status === 'FILTERED' ? 'bg-yellow-100' : 'bg-gray-100'
+                  }`}>
+                    <div className="font-medium">{card.word}</div>
+                    <div className="text-gray-600">Status: {card.status}</div>
+                    <div className="text-gray-600">Reason: {card.reason}</div>
+                    {card.progress && (
+                      <div className="text-gray-500">
+                        Last: {safeDate(card.progress.lastReviewed).toLocaleString()}, 
+                        Next: {safeDate(card.progress.nextReview).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Card Interface */}
       {isSimpleMode ? (

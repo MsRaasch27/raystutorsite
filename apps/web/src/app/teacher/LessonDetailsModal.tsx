@@ -77,7 +77,7 @@ export function LessonDetailsModal({
     try {
       setLoading(true);
       console.log('Fetching lesson details for:', lesson.calendarEventId);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api-bzn2v7ik2a-uc.a.run.app'}/api/teacher/lessons/${lesson.calendarEventId}`);
+      const response = await fetch(`/api/teacher/lessons/${lesson.calendarEventId}`);
       if (response.ok) {
         const data = await response.json();
         console.log('Fetched lesson details:', data);
@@ -97,7 +97,7 @@ export function LessonDetailsModal({
       setSaving(true);
       console.log('Saving lesson details for:', lesson.calendarEventId);
       console.log('Details to save:', details);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://api-bzn2v7ik2a-uc.a.run.app'}/api/teacher/lessons/${lesson.calendarEventId}/details`, {
+      const response = await fetch(`/api/teacher/lessons/${lesson.calendarEventId}/details`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

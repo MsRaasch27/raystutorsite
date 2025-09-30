@@ -40,7 +40,7 @@ export function CEFRLevels({ userId }: CEFRLevelsProps) {
     const fetchCEFRLevels = async () => {
       try {
         setLoading(true);
-        const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://api-bzn2v7ik2a-uc.a.run.app'}/api/users/${encodeURIComponent(userId)}/cefr-levels`;
+        const apiUrl = `/api/users/${encodeURIComponent(userId)}/cefr-levels`;
         console.log('Fetching CEFR levels from:', apiUrl);
         
         const response = await fetch(apiUrl);
